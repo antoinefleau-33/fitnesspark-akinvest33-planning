@@ -14,7 +14,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
     <style>
-        /* THEME FITNESS PARK */
+        /* THEME FITNESS PARK (ÉCRAN) */
         :root { --fp-dark: #111827; --fp-gray: #1F2937; --fp-yellow: #FACC15; --fp-text: #F3F4F6; }
         body { background-color: var(--fp-dark); color: var(--fp-text); -webkit-tap-highlight-color: transparent; }
 
@@ -48,31 +48,35 @@
 
         .club-badge { font-size: 8px; font-weight: bold; background: rgba(0,0,0,0.1); padding: 2px 4px; border-radius: 2px; text-transform: uppercase; margin-bottom: 2px; display: inline-block; }
 
-        /* Loader Cloud */
         .sync-dot { display: inline-block; width: 8px; height: 8px; background-color: #22c55e; border-radius: 50%; box-shadow: 0 0 8px #22c55e; margin-right: 5px; animation: blink 2s infinite; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 
-        /* IMPRESSION */
+        /* --- IMPRESSION (MODE ECO-ENCRE / LEGAL) --- */
         @media print {
             @page { size: landscape; margin: 5mm; }
-            body { background: white; color: black; -webkit-print-color-adjust: exact; zoom: 70%; }
+            
+            * { background-color: transparent !important; color: black !important; text-shadow: none !important; box-shadow: none !important; }
+            body, html { background: white !important; zoom: 70%; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            
             #sidebar, #headerTools, .no-print, #toast, .card-actions, #cloudStatus { display: none !important; }
-            #mainContainer { width: 100% !important; height: auto !important; overflow: visible !important; display: block !important; padding: 0 !important; }
-            .bg-gray-900, .bg-gray-800, .bg-black { background-color: white !important; color: black !important; border-color: #ccc !important; }
-            .text-yellow-400, .text-yellow-500 { color: black !important; font-weight: bold; }
-            .text-gray-300, .text-gray-400, .text-gray-500, .text-white { color: black !important; }
+            #mainContainer { width: 100% !important; height: auto !important; overflow: visible !important; display: block !important; padding: 0 !important; border: none !important; }
+            
+            .border-gray-800, .border-gray-700, .border-gray-900, .bg-[#111], .bg-[#131313], .bg-[#0f0f0f], .bg-gray-900 { border-color: #ccc !important; }
             .matrix-grid, .gantt-grid-precise { border: 1px solid #000 !important; }
-            .border-b, .border-r { border-color: #ccc !important; }
-            .shift-card { border: 1px solid #666 !important; box-shadow: none !important; break-inside: avoid; background-color: #f3f4f6 !important; }
-            .shift-card.absent { background: repeating-linear-gradient(45deg, #eee, #eee 5px, #ddd 5px, #ddd 10px) !important; }
-            #signatureSection { display: block !important; page-break-before: always; width: 100% !important; padding-top: 20px; }
-            .sig-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
-            .sig-table th, .sig-table td { border: 1px solid #000; padding: 10px; text-align: left; }
-            .sig-box { height: 40px; }
-            .print-footer { display: flex; justify-content: space-between; margin-top: 40px; gap: 40px; }
-            .company-box { width: 40%; border: 2px solid #000; padding: 15px; font-size: 14px; }
-            .visa-container { width: 60%; display: flex; gap: 20px; }
-            .visa-box { flex: 1; border: 1px solid #000; height: 100px; padding: 10px; font-size: 12px; font-weight: bold; }
+            .border-b, .border-r { border-bottom: 1px solid #ccc !important; border-right: 1px solid #ccc !important; }
+            
+            .shift-card { border: 1px solid #000 !important; background-color: white !important; break-inside: avoid; color: black !important; }
+            .shift-card.absent { background: repeating-linear-gradient(45deg, #fff, #fff 5px, #ccc 5px, #ccc 10px) !important; border: 1px solid #000 !important; }
+            
+            /* --- SECTION EMARGEMENT LÉGAL --- */
+            #signatureSection { display: block !important; page-break-before: always; width: 100% !important; padding-top: 10px; }
+            
+            .sig-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; }
+            .sig-table th, .sig-table td { border: 1px solid #000 !important; padding: 8px; text-align: left; vertical-align: top; }
+            .sig-table th { background-color: #f3f4f6 !important; font-weight: bold; }
+            .sig-box { height: 60px; } /* Espace pour signer */
+            
+            .legal-text { font-size: 10px; font-style: italic; color: #555 !important; margin-bottom: 10px; }
         }
     </style>
 </head>
@@ -126,7 +130,9 @@
                 </div>
             </div>
 
-            <button onclick="duplicateWeek()" class="hidden md:flex bg-purple-900 border border-purple-700 hover:bg-purple-700 text-purple-100 font-bold px-3 py-2 rounded text-[10px] uppercase tracking-wide shadow-lg transform hover:scale-105 transition items-center gap-1 no-print"><i class="far fa-copy"></i> Dupliquer</button>
+            <button onclick="duplicateWeek()" class="hidden md:flex bg-purple-900 border border-purple-700 hover:bg-purple-700 text-purple-100 font-bold px-3 py-2 rounded text-[10px] uppercase tracking-wide shadow-lg transform hover:scale-105 transition items-center gap-1 no-print">
+                <i class="far fa-copy"></i> Dupliquer
+            </button>
             <button onclick="sendMail()" class="w-10 h-10 rounded border border-blue-700 bg-blue-900 hover:bg-blue-700 text-blue-100 transition flex items-center justify-center shadow-lg" title="Préparer l'email"><i class="fas fa-envelope"></i></button>
             <button onclick="exportToExcel()" class="w-10 h-10 rounded border border-green-700 bg-green-900 hover:bg-green-700 text-green-100 transition flex items-center justify-center shadow-lg" title="Export Paye (Excel)"><i class="fas fa-file-excel"></i></button>
             <button onclick="window.print()" class="w-10 h-10 rounded border border-gray-700 hover:bg-gray-800 hover:text-yellow-400 transition flex items-center justify-center" title="Imprimer PDF"><i class="fas fa-print"></i></button>
@@ -178,21 +184,44 @@
             </div>
 
             <div id="signatureSection" class="hidden bg-white p-4">
-                <div class="flex justify-between items-center mb-4 border-b-2 border-black pb-2">
-                    <h2 class="text-black font-bold uppercase text-lg">Feuille d'Émargement</h2>
-                    <div class="text-right">
-                        <div class="font-bold text-lg" id="printCompanyNameTop">FITNESS PARK</div>
-                        <div class="text-sm" id="printWeekTitle">Semaine du ...</div>
+                
+                <div class="border-b-2 border-black pb-4 mb-4 flex justify-between items-start">
+                    <div>
+                        <h2 class="text-black font-black uppercase text-2xl tracking-wider">Feuille d'Émargement</h2>
+                        <div class="text-md mt-2 text-black font-bold" id="printWeekTitle">Semaine du ...</div>
+                    </div>
+                    <div class="text-right border border-black p-3 rounded bg-gray-50">
+                        <div class="font-black text-xl uppercase tracking-tighter" id="printCompanyNameTop">FITNESS PARK</div>
+                        <div class="text-sm mt-1" id="printCompanyDetailsTop"></div>
                     </div>
                 </div>
+
+                <div class="legal-text">
+                    Document légal à conserver. Toute modification d'horaire (heures supplémentaires, absences) doit être obligatoirement justifiée dans la colonne "Observations" et validée par la signature conjointe du salarié et de la direction.
+                </div>
+                
                 <table class="sig-table">
-                    <thead><tr><th width="20%">Nom</th><th width="15%">Rôle</th><th width="20%">Heures Travail</th><th width="45%">Signature</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th width="20%">Salarié & Rôle</th>
+                            <th width="15%" style="text-align:center;">Heures Réalisées</th>
+                            <th width="35%">Observations / Justifications modifications</th>
+                            <th width="15%" style="text-align:center;">Visa Salarié</th>
+                            <th width="15%" style="text-align:center;">Visa Direction</th>
+                        </tr>
+                    </thead>
                     <tbody id="signatureTableBody"></tbody>
                 </table>
-                <div class="print-footer">
-                    <div class="company-box"><div class="font-bold uppercase underline mb-2">Fiche Entreprise</div><div id="printCompanyDetails"></div></div>
-                    <div class="visa-container"><div class="visa-box">Visa Direction :</div><div class="visa-box">Commentaires :</div></div>
+
+                <div class="flex justify-between gap-6 mt-8">
+                    <div class="flex-1 border border-black p-3 h-32 rounded">
+                        <strong class="uppercase text-xs block mb-2">Cachet de l'entreprise :</strong>
+                    </div>
+                    <div class="flex-1 border border-black p-3 h-32 rounded">
+                        <strong class="uppercase text-xs block mb-2">Commentaires Généraux / Validation :</strong>
+                    </div>
                 </div>
+
             </div>
         </main>
     </div>
@@ -245,7 +274,7 @@
                 <div class="text-[10px] text-gray-400 text-center italic" id="shiftDurationPreview">Durée effective: 0h</div>
 
                 <div>
-                    <label class="text-[10px] font-bold text-gray-500 uppercase">Commentaire</label>
+                    <label class="text-[10px] font-bold text-gray-500 uppercase">Commentaire (Tâche / Info)</label>
                     <textarea id="shiftComment" rows="2" placeholder="Ex: Accueil + Ouverture..." class="w-full bg-gray-900 border border-gray-700 text-white p-2 rounded text-xs focus:border-yellow-500 outline-none"></textarea>
                 </div>
             </div>
@@ -293,11 +322,12 @@
 
     <div id="configModal" class="hidden fixed inset-0 bg-black/90 flex items-center justify-center z-50 backdrop-blur-sm no-print">
         <div class="bg-gray-800 border border-gray-600 p-6 w-[400px] shadow-2xl rounded-lg">
-            <h3 class="text-xl font-black italic text-white mb-4 uppercase border-b-2 border-yellow-500 inline-block">Fiche Entreprise (Impression)</h3>
+            <h3 class="text-xl font-black italic text-white mb-4 uppercase border-b-2 border-yellow-500 inline-block">Fiche Entreprise (Légal)</h3>
+            <p class="text-gray-400 text-xs mb-4">Ces informations apparaîtront sur l'en-tête de la feuille d'émargement.</p>
             <div class="space-y-3">
-                <input type="text" id="confName" placeholder="Raison Sociale" class="w-full bg-gray-900 border border-gray-700 text-white p-2 rounded text-sm focus:border-yellow-500 outline-none">
-                <textarea id="confAddress" rows="2" placeholder="Adresse Siège" class="w-full bg-gray-900 border border-gray-700 text-white p-2 rounded text-sm focus:border-yellow-500 outline-none"></textarea>
-                <input type="text" id="confSiret" placeholder="SIRET" class="w-full bg-gray-900 border border-gray-700 text-white p-2 rounded text-sm focus:border-yellow-500 outline-none">
+                <input type="text" id="confName" placeholder="Raison Sociale (ex: FITNESS PARK BEGLES)" class="w-full bg-gray-900 border border-gray-700 text-white p-2 rounded text-sm focus:border-yellow-500 outline-none">
+                <textarea id="confAddress" rows="2" placeholder="Adresse complète du Siège" class="w-full bg-gray-900 border border-gray-700 text-white p-2 rounded text-sm focus:border-yellow-500 outline-none"></textarea>
+                <input type="text" id="confSiret" placeholder="N° SIRET" class="w-full bg-gray-900 border border-gray-700 text-white p-2 rounded text-sm focus:border-yellow-500 outline-none">
             </div>
             <div class="flex gap-2 mt-6">
                 <button onclick="closeModal('configModal')" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded text-xs font-bold uppercase">Annuler</button>
@@ -310,6 +340,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
         import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
 
+        // VOS CLES D'API FIREBASE OFFICIELLES
         const firebaseConfig = {
             apiKey: "AIzaSyCHUdz0WjVOnFGefYFD0JhZJtPLPPwiKao",
             authDomain: "fp-planning-16029.firebaseapp.com",
@@ -317,7 +348,8 @@
             projectId: "fp-planning-16029",
             storageBucket: "fp-planning-16029.firebasestorage.app",
             messagingSenderId: "365956911556",
-            appId: "1:365956911556:web:b0832bca03103913abd491"
+            appId: "1:365956911556:web:b0832bca03103913abd491",
+            measurementId: "G-KM2HLJ4LQL"
         };
 
         const app = initializeApp(firebaseConfig);
@@ -329,9 +361,10 @@
         let company = { name: "FITNESS PARK", address: "Adresse...", siret: "SIRET..." };
         let clipboard = null, editingEmpId = null, draggedShiftId = null;
         let currentClubView = 'all';
+        
         const clubsName = { 'begles': 'Bègles', 'merignac': 'Mérignac', 'bdxlac': 'Bordeaux Lac', 'libourne': 'Libourne' };
         const colorPalette = ["bg-indigo-200 border-indigo-500","bg-emerald-200 border-emerald-500","bg-amber-200 border-amber-600","bg-rose-200 border-rose-500","bg-cyan-200 border-cyan-500","bg-fuchsia-200 border-fuchsia-500"];
-
+        
         // --- ATTACHEMENT DES FONCTIONS A L'OBJET WINDOW POUR LE HTML ---
         window.changeClub = changeClub; window.switchView = switchView; window.navigate = navigate;
         window.exportToExcel = exportToExcel; window.sendMail = sendMail; window.openModal = openModal;
@@ -350,6 +383,8 @@
                 shifts = data.shifts ? Object.values(data.shifts) : [];
                 employees = data.employees ? Object.values(data.employees) : [];
                 company = data.company || company;
+            } else {
+                shifts = []; employees = [];
             }
             updateView();
             if(!document.getElementById('employeeModal').classList.contains('hidden')) renderModalList();
@@ -409,7 +444,9 @@
         // --- RENDERERS ---
         function renderWeekMatrix() {
             const container = document.getElementById('matrixRows'); container.innerHTML = '';
-            const wId = getWId(currentWeekOffset); const activeShifts = getFilteredShifts(); const activeEmps = getFilteredEmployees();
+            const wId = getWId(currentWeekOffset);
+            const activeShifts = getFilteredShifts();
+            const activeEmps = getFilteredEmployees();
             
             if(activeEmps.length === 0) { container.innerHTML = `<div class="p-8 text-center text-gray-500 italic">Aucun employé dans ce club.</div>`; return; }
 
@@ -453,7 +490,9 @@
 
         function renderGantt() {
             const container = document.getElementById('ganttRows'); container.innerHTML = '';
-            const wId = getWId(currentWeekOffset); const activeShifts = getFilteredShifts(); const activeEmps = getFilteredEmployees();
+            const wId = getWId(currentWeekOffset);
+            const activeShifts = getFilteredShifts();
+            const activeEmps = getFilteredEmployees();
             const dayShifts = activeShifts.filter(s => s.wId === wId && parseInt(s.dIdx) === currentDayIndex);
             
             if(activeEmps.length === 0) { container.innerHTML = `<div style="grid-column:1/-1; padding:20px; text-align:center; color:#555;">Aucun employé.</div>`; return; }
@@ -501,18 +540,22 @@
             } 
         }
 
+        // --- DUPLICATE WEEK ---
         function duplicateWeek() {
             if(!confirm("Copier TOUS les shifts de la vue actuelle vers la semaine suivante ?")) return;
-            const currentWId = getWId(currentWeekOffset); const nextWId = getWId(currentWeekOffset + 1);
+            const currentWId = getWId(currentWeekOffset);
+            const nextWId = getWId(currentWeekOffset + 1);
             const shiftsToCopy = getFilteredShifts().filter(s => s.wId === currentWId);
             if(shiftsToCopy.length === 0) { alert("Aucun shift à dupliquer."); return; }
             shiftsToCopy.forEach(s => { shifts.push({ ...s, id: Date.now() + Math.random(), wId: nextWId }); });
             saveToCloud(); currentWeekOffset++; updateView(); showToast("Semaine dupliquée !");
         }
 
+        // --- STATS & SIDEBAR ---
         function getStatusLabel(st) { const map = { 'maladie':'MALADIE', 'justifie':'ABS. JUST.', 'injustifie':'ABS. INJUST.', 'cp':'CONGÉS P.', 'css':'SANS SOLDE' }; return map[st] || ''; }
         function updateStats() {
-            const wId = getWId(currentWeekOffset); const activeShifts = getFilteredShifts();
+            const wId = getWId(currentWeekOffset);
+            const activeShifts = getFilteredShifts();
             const tot = activeShifts.filter(s => s.wId === wId && (!s.status || s.status === 'present')).reduce((a,b)=>a+b.dur,0);
             document.getElementById('totalHours').innerText = parseFloat(tot.toFixed(2));
             document.getElementById('totalCost').innerText = Math.round(tot*25)+"€";
@@ -520,7 +563,9 @@
 
         function renderSidebar() {
             const div = document.getElementById('sidebarEmployeeList'); div.innerHTML = '';
-            const wId = getWId(currentWeekOffset); const activeShifts = getFilteredShifts(); const activeEmps = getFilteredEmployees();
+            const wId = getWId(currentWeekOffset);
+            const activeShifts = getFilteredShifts();
+            const activeEmps = getFilteredEmployees();
             if(activeEmps.length === 0) div.innerHTML = '<div class="text-center text-gray-600 text-[10px] mt-4">Aucun staff</div>';
             
             activeEmps.forEach(e => {
@@ -534,16 +579,25 @@
 
         function renderSigTable() {
             const tb = document.getElementById('signatureTableBody'); tb.innerHTML = '';
-            const wId = getWId(currentWeekOffset); const activeShifts = getFilteredShifts();
+            const wId = getWId(currentWeekOffset);
+            const activeShifts = getFilteredShifts();
             getFilteredEmployees().forEach(e => {
                 const total = activeShifts.filter(s => s.wId === wId && s.eId === e.id && (!s.status || s.status === 'present')).reduce((a,b)=>a+b.dur,0);
                 if(total > 0 || currentClubView === 'all') {
-                    tb.innerHTML += `<tr><td class="font-bold">${e.name}</td><td>${e.role}</td><td>${parseFloat(total.toFixed(2))}h / ${e.max}h</td><td class="sig-box"></td></tr>`;
+                    tb.innerHTML += `
+                    <tr>
+                        <td class="font-bold">${e.name}<br><span class="text-xs font-normal" style="color:#555">${e.role}</span></td>
+                        <td style="text-align:center;">${parseFloat(total.toFixed(2))}h / ${e.max}h</td>
+                        <td></td>
+                        <td class="sig-box"></td>
+                        <td class="sig-box"></td>
+                    </tr>`;
                 }
             });
         }
 
         function sendMail() { const clubN = currentClubView==='all' ? 'Multi-Clubs' : clubsName[currentClubView]; const subject = `Planning Fitness Park ${clubN} - Semaine du ${document.getElementById('printWeekTitle').innerText.replace('Semaine du ','').split(' -')[0]}`; const body = `Bonjour,%0D%0A%0D%0AVeuillez trouver ci-joint le planning.%0D%0A%0D%0ACordialement,%0D%0A${company.name}`; window.location.href = `mailto:?subject=${subject}&body=${body}`; }
+        
         function exportToExcel() {
             const monday = getMonday(currentWeekOffset); const wId = getWId(currentWeekOffset);
             const activeShifts = getFilteredShifts(); const activeEmps = getFilteredEmployees();
@@ -564,6 +618,7 @@
             const blob = new Blob([tableHTML], { type: 'application/vnd.ms-excel' }); const url = window.URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `Paye_${clubN}_S${getWeekNum(monday)}.xls`; a.click();
         }
 
+        // --- SHIFTS CRUD ---
         function submitShift() {
             const editId = document.getElementById('shiftEditId').value;
             const eId = parseInt(document.getElementById('shiftEmpSelect').value);
@@ -592,7 +647,16 @@
             const s = shifts.find(x => x.id === id); if(!s) return;
             openModal('shiftModal');
             document.getElementById('shiftModalTitle').innerText = "Modifier Shift";
-            document.getElementById('shiftEditId').value = s.id; document.getElementById('shiftEmpSelect').value = s.eId; document.getElementById('shiftDaySelect').value = s.dIdx; document.getElementById('shiftStart').value = s.startStr; document.getElementById('shiftEnd').value = s.endStr; document.getElementById('shiftPause').value = s.pause || 0; document.getElementById('shiftStatus').value = s.status || 'present'; document.getElementById('shiftComment').value = s.comment || ''; document.getElementById('shiftClubSelect').value = s.clubId || 'begles'; calcPreview();
+            document.getElementById('shiftEditId').value = s.id;
+            document.getElementById('shiftEmpSelect').value = s.eId;
+            document.getElementById('shiftDaySelect').value = s.dIdx;
+            document.getElementById('shiftStart').value = s.startStr;
+            document.getElementById('shiftEnd').value = s.endStr;
+            document.getElementById('shiftPause').value = s.pause || 0;
+            document.getElementById('shiftStatus').value = s.status || 'present';
+            document.getElementById('shiftComment').value = s.comment || '';
+            document.getElementById('shiftClubSelect').value = s.clubId || 'begles';
+            calcPreview();
         }
 
         function copyShift(id, e) { e.stopPropagation(); const s = shifts.find(x => x.id === id); if(s) { clipboard = { ...s }; document.getElementById('btnPaste').classList.remove('hidden'); document.getElementById('btnPaste').classList.add('flex'); showToast("Copié dans le presse-papier !"); } }
@@ -600,6 +664,7 @@
         
         function delShift(id, e) { if(e) e.stopPropagation(); if(confirm('Supprimer ce shift ?')) { shifts = shifts.filter(s => s.id !== id); saveToCloud(); } }
 
+        // --- EMPLOYEE CRUD ---
         function saveEmployee() { const name = document.getElementById('newEmpName').value; const role = document.getElementById('newEmpRole').value; const max = parseInt(document.getElementById('newEmpHours').value); const clubId = document.getElementById('newEmpClub').value; if(!name || !max) return; if(editingEmpId) { const idx = employees.findIndex(e => e.id == editingEmpId); if(idx !== -1) { employees[idx].name = name.toUpperCase(); employees[idx].role = role; employees[idx].max = max; employees[idx].clubId = clubId; } } else { employees.push({ id: Date.now(), name: name.toUpperCase(), role: role || 'Staff', max, clubId: clubId, color: colorPalette[employees.length % colorPalette.length] }); } resetEmpForm(); saveToCloud(); }
         function prepareEditEmp(id) { const emp = employees.find(e => e.id === id); if(emp) { document.getElementById('newEmpName').value = emp.name; document.getElementById('newEmpRole').value = emp.role; document.getElementById('newEmpHours').value = emp.max; document.getElementById('newEmpClub').value = emp.clubId || 'all'; document.getElementById('editEmpId').value = emp.id; editingEmpId = emp.id; const btn = document.getElementById('btnSaveEmp'); btn.innerText = "MODIFIER"; btn.classList.remove('bg-green-600','hover:bg-green-500'); btn.classList.add('bg-orange-600','hover:bg-orange-500'); } }
         function resetEmpForm() { document.getElementById('newEmpName').value = ''; document.getElementById('newEmpRole').value = ''; document.getElementById('newEmpHours').value = ''; document.getElementById('newEmpClub').value = 'all'; document.getElementById('editEmpId').value = ''; editingEmpId = null; const btn = document.getElementById('btnSaveEmp'); btn.innerText = "AJOUTER"; btn.classList.add('bg-green-600','hover:bg-green-500'); btn.classList.remove('bg-orange-600','hover:bg-orange-500'); }
@@ -609,7 +674,7 @@
         function renderModalList() { 
             const container = document.getElementById('modalEmployeeList'); container.innerHTML = ''; 
             employees.forEach((e, i) => { 
-                const clubBadge = e.clubId && e.clubId !== 'all' ? `<span class="text-[8px] bg-blue-900 text-blue-200 px-1 rounded ml-1 uppercase">${clubsName[e.clubId].substring(0,3)}</span>` : `<span class="text-[8px] bg-gray-700 text-gray-300 px-1 rounded ml-1 uppercase">MULTI</span>`;
+                const clubBadge = e.clubId && e.clubId !== 'all' ? `<span class="text-[8px] border border-gray-600 text-gray-400 px-1 rounded ml-1 uppercase">${clubsName[e.clubId].substring(0,3)}</span>` : `<span class="text-[8px] bg-gray-700 text-gray-300 px-1 rounded ml-1 uppercase">MULTI</span>`;
                 container.innerHTML += `<div class="emp-row flex justify-between items-center border-b border-gray-700 p-2 text-xs text-gray-300"><div class="w-1/3 truncate font-bold">${e.name} ${clubBadge}</div><div class="w-1/4 truncate">${e.role}</div><div class="w-1/6 text-center">${e.max}h</div><div class="w-1/4 flex justify-end gap-1"><span onclick="moveEmp(${i}, -1)" class="action-icon text-gray-400 hover:text-white">⬆️</span><span onclick="moveEmp(${i}, 1)" class="action-icon text-gray-400 hover:text-white">⬇️</span><span onclick="prepareEditEmp(${e.id})" class="action-icon text-blue-400 hover:text-blue-300">✏️</span><span onclick="delEmp(${e.id})" class="action-icon text-red-500 hover:text-red-400">🗑️</span></div></div>`; 
             }); 
         }
@@ -623,8 +688,19 @@
         function switchView(m) { viewMode = m; document.getElementById('btnViewWeek').className = m==='week'?"px-3 py-1 text-xs font-bold uppercase rounded bg-yellow-500 text-black shadow":"px-3 py-1 text-xs font-bold uppercase rounded text-gray-400 hover:text-white"; document.getElementById('btnViewDay').className = m==='day'?"px-3 py-1 text-xs font-bold uppercase rounded bg-yellow-500 text-black shadow":"px-3 py-1 text-xs font-bold uppercase rounded text-gray-400 hover:text-white"; updateView(); }
         function showToast(msg) { const t = document.getElementById('toast'); t.innerText=msg; t.className="show"; setTimeout(()=>t.className="", 3000); }
         function resetAll() { if(confirm('⚠️ ATTENTION : CELA VA EFFACER LA BASE DE DONNÉES CLOUD POUR TOUTES LES SALLES ! CONTINUER ?')) { shifts = []; employees = []; saveToCloud(); } }
-        function saveCompany() { company.name = document.getElementById('confName').value; company.address = document.getElementById('confAddress').value; company.siret = document.getElementById('confSiret').value; saveToCloud(); closeModal('configModal'); }
-        function renderCompanyInfo() { document.getElementById('printCompanyNameTop').innerText = company.name; document.getElementById('printCompanyDetails').innerHTML = `<strong>${company.name}</strong><br>${company.address.replace(/\n/g,'<br>')}<br><em>${company.siret}</em>`; }
+        
+        function saveCompany() { 
+            company.name = document.getElementById('confName').value; 
+            company.address = document.getElementById('confAddress').value; 
+            company.siret = document.getElementById('confSiret').value; 
+            saveToCloud(); 
+            closeModal('configModal'); 
+        }
+        
+        function renderCompanyInfo() { 
+            document.getElementById('printCompanyNameTop').innerText = company.name; 
+            document.getElementById('printCompanyDetailsTop').innerHTML = `${company.address.replace(/\n/g,'<br>')}<br><span class="text-xs text-gray-600 mt-1 block">SIRET : ${company.siret}</span>`; 
+        }
 
         function openModal(id) {
             document.getElementById(id).classList.remove('hidden');
