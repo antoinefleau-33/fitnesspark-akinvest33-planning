@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ISO Compiler — Terminal Linux (WSL) + sudo</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💿</text></svg>" />
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
+<link rel="stylesheet" href="/vendor/xterm/css/xterm.css" />
 <style>
   :root {
     --bg: #0d1117; --panel: #161b22; --panel2: #1c2230; --border: #2d3646;
@@ -89,6 +89,24 @@
   code { background: #0d1117; border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: var(--mono); font-size: 11px; }
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #21262d; border: 1px solid var(--border); border-left: 3px solid var(--accent); color: var(--text); padding: 12px 18px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 50; }
   .toast.show { opacity: 1; }
+
+  /* Modale de collage (repli quand l'accès direct au presse-papier est bloqué) */
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 40; padding: 16px; }
+  .modal-bg.show { display: flex; }
+  .modal { background: var(--panel2); border: 1px solid var(--border); border-radius: 12px; padding: 18px; width: 100%; max-width: 460px; }
+  .modal h3 { margin: 0 0 4px; font-size: 15px; }
+  .modal .sub2 { font-size: 12px; color: var(--muted); margin-bottom: 10px; line-height: 1.5; }
+  .modal textarea {
+    width: 100%; min-height: 130px; background: #0d1117; border: 1px solid var(--border); color: var(--text);
+    border-radius: 7px; padding: 10px; font-size: 13px; font-family: var(--mono); resize: vertical;
+  }
+  .modal textarea:focus { outline: none; border-color: var(--accent); }
+
+  /* Mobile : la sidebar passe au-dessus du terminal */
+  @media (max-width: 820px) {
+    main { grid-template-columns: 1fr; grid-template-rows: auto minmax(320px, 1fr); overflow-y: auto; }
+    .sidebar { border-right: none; border-bottom: 1px solid var(--border); max-height: 55vh; }
+  }
 </style>
 </head>
 <body>
@@ -114,6 +132,7 @@
         Glisse tes fichiers/dossiers ici<br />ou clique pour parcourir
       </div>
       <input type="file" id="fileInput" multiple hidden />
+      <button class="secondary" id="pasteFileBtn" style="margin-top:8px">📋 Coller depuis le presse-papier</button>
       <div class="files" id="fileList"><div class="empty">Aucun fichier importé</div></div>
       <button class="danger" id="clearBtn" style="margin-top:8px">Vider la source</button>
     </div>
@@ -154,7 +173,10 @@
       <span class="tcircle" style="background:#d29922"></span>
       <span class="tcircle" style="background:#3fb950"></span>
       <span style="margin-left:8px">Terminal — <span id="shellName">shell</span></span>
-      <span style="margin-left:auto"><button class="secondary" style="width:auto;padding:4px 10px;font-size:11px" id="clearTerm">clear</button></span>
+      <span style="margin-left:auto;display:flex;gap:6px">
+        <button class="secondary" style="width:auto;padding:4px 10px;font-size:11px" id="pasteTerm">📋 Coller</button>
+        <button class="secondary" style="width:auto;padding:4px 10px;font-size:11px" id="clearTerm">clear</button>
+      </span>
     </div>
     <div id="terminal"></div>
   </section>
@@ -162,8 +184,27 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+<!-- Modale de collage -->
+<div class="modal-bg" id="pasteModal">
+  <div class="modal">
+    <h3 id="pasteTitle">Coller</h3>
+    <div class="sub2" id="pasteSub">Appui long dans la zone ci-dessous → « Coller », puis valide.</div>
+    <div id="pasteNameRow">
+      <label>Nom du fichier</label>
+      <input type="text" id="pasteName" value="note.txt" />
+    </div>
+    <label>Contenu</label>
+    <textarea id="pasteArea" placeholder="Appui long ici → « Coller » (texte, ou même une photo copiée)"></textarea>
+    <button class="secondary" id="pasteAuto" style="margin-top:8px">⚡ Coller automatiquement depuis le presse-papier</button>
+    <div class="row" style="margin-top:12px">
+      <button class="secondary" id="pasteCancel">Annuler</button>
+      <button id="pasteOk">Valider</button>
+    </div>
+  </div>
+</div>
+
+<script src="/vendor/xterm/lib/xterm.js"></script>
+<script src="/vendor/addon-fit/lib/addon-fit.js"></script>
 <script>
 (function () {
   'use strict';
@@ -215,7 +256,8 @@
   function sendResize() {
     if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
   }
-  term.onData((d) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'input', data: d })); });
+  function sendInput(d) { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'input', data: d })); }
+  term.onData(sendInput);
   function runInTerminal(cmd) {
     if (ws && ws.readyState === 1) { ws.send(JSON.stringify({ type: 'run', data: cmd })); term.focus(); }
   }
@@ -306,6 +348,119 @@
         setTimeout(loadIsos, 12000);
       });
   };
+
+  // --- Presse-papier ---
+  // L'API navigator.clipboard exige un contexte sécurisé (HTTPS ou localhost).
+  // Sur iPhone, Safari demande en plus une confirmation « Autoriser le collage ».
+  // Si l'accès direct échoue, on ouvre une modale où l'utilisateur colle à la main
+  // (appui long → Coller) — ça marche partout, même en HTTP sur le réseau local.
+  let pasteMode = 'terminal'; // 'terminal' | 'file'
+  const modal = $('pasteModal');
+
+  function openPasteModal(mode, prefill) {
+    pasteMode = mode;
+    $('pasteTitle').textContent = mode === 'terminal' ? '📋 Coller dans le terminal' : '📋 Coller comme fichier';
+    $('pasteSub').textContent = mode === 'terminal'
+      ? 'Appui long dans la zone → « Coller », puis valide : le texte sera tapé dans le terminal.'
+      : 'Appui long dans la zone → « Coller » (texte ou photo copiée), puis valide : un fichier sera créé et ajouté à l\'ISO.';
+    $('pasteNameRow').style.display = mode === 'file' ? 'block' : 'none';
+    $('pasteArea').value = prefill || '';
+    modal.classList.add('show');
+    setTimeout(() => $('pasteArea').focus(), 100);
+  }
+  function closePasteModal() { modal.classList.remove('show'); $('pasteArea').value = ''; }
+  $('pasteCancel').onclick = closePasteModal;
+  modal.addEventListener('click', (e) => { if (e.target === modal) closePasteModal(); });
+
+  function uploadBlob(blob, name) {
+    const fd = new FormData();
+    fd.append('files', blob, name);
+    return fetch('/api/upload', { method: 'POST', body: fd })
+      .then((r) => r.json())
+      .then(() => { toast(`Fichier « ${name} » ajouté`); loadFiles(); });
+  }
+
+  // Dans la modale : si on colle une image/un fichier (photo copiée sur iPhone),
+  // on l'importe directement sans passer par le texte.
+  $('pasteArea').addEventListener('paste', (e) => {
+    if (pasteMode !== 'file' || !e.clipboardData) return;
+    const files = e.clipboardData.files;
+    if (files && files.length) {
+      e.preventDefault();
+      const ps = [];
+      for (const f of files) {
+        const ext = (f.type.split('/')[1] || 'bin').replace('jpeg', 'jpg');
+        ps.push(uploadBlob(f, f.name || `presse-papier-${Date.now()}.${ext}`));
+      }
+      Promise.all(ps).then(closePasteModal);
+    }
+  });
+
+  $('pasteOk').onclick = () => {
+    const text = $('pasteArea').value;
+    if (!text) return toast('Rien à coller');
+    if (pasteMode === 'terminal') {
+      sendInput(text);
+      term.focus();
+    } else {
+      let name = ($('pasteName').value || 'note.txt').replace(/[^A-Za-z0-9_. -]/g, '_');
+      if (!/\.[A-Za-z0-9]+$/.test(name)) name += '.txt';
+      uploadBlob(new Blob([text], { type: 'text/plain' }), name);
+    }
+    closePasteModal();
+  };
+
+  // Lecture directe du presse-papier, bornée dans le temps : sur certains
+  // navigateurs la promesse ne se règle jamais si la permission est ignorée,
+  // il ne faut donc jamais bloquer l'interface dessus.
+  function withTimeout(promise, ms) {
+    return Promise.race([promise, new Promise((res) => setTimeout(() => res(null), ms))]);
+  }
+  async function readClipboardDirect() {
+    if (!window.isSecureContext || !navigator.clipboard) return null;
+    try {
+      if (navigator.clipboard.read) {
+        const items = await withTimeout(navigator.clipboard.read(), 4000);
+        if (items) {
+          for (const item of items) {
+            const imgType = item.types.find((t) => t.startsWith('image/'));
+            if (imgType) {
+              const blob = await item.getType(imgType);
+              return { kind: 'image', blob, ext: imgType.split('/')[1].replace('jpeg', 'jpg') };
+            }
+          }
+        }
+      }
+      const txt = await withTimeout(navigator.clipboard.readText(), 4000);
+      if (txt) return { kind: 'text', text: txt };
+      return null;
+    } catch (_) {
+      return null; // refusé / non supporté → collage manuel dans la modale
+    }
+  }
+
+  // Bouton « ⚡ Coller automatiquement » dans la modale (déclenché par un geste
+  // utilisateur → sur iPhone, Safari affiche sa bulle « Coller » à confirmer).
+  $('pasteAuto').onclick = async () => {
+    const btn = $('pasteAuto');
+    btn.disabled = true; btn.textContent = '… lecture du presse-papier';
+    const clip = await readClipboardDirect();
+    btn.disabled = false; btn.textContent = '⚡ Coller automatiquement depuis le presse-papier';
+    if (clip && clip.kind === 'image' && pasteMode === 'file') {
+      await uploadBlob(clip.blob, `presse-papier-${Date.now()}.${clip.ext}`);
+      closePasteModal();
+    } else if (clip && clip.kind === 'text') {
+      $('pasteArea').value = clip.text;
+      toast('Presse-papier récupéré — valide pour confirmer');
+    } else {
+      toast('Accès refusé : fais un appui long dans la zone → « Coller »');
+      $('pasteArea').focus();
+    }
+  };
+
+  // Les deux boutons ouvrent la modale immédiatement (jamais d'attente bloquante)
+  $('pasteTerm').onclick = () => openPasteModal('terminal');
+  $('pasteFileBtn').onclick = () => openPasteModal('file');
 
   loadFiles();
   loadIsos();

@@ -56,6 +56,21 @@ commandes, `sudo` inclus.
 
 ---
 
+## 📋 Coller depuis le presse-papier (pensé pour mobile/iPhone)
+
+- **Bouton « 📋 Coller » dans la barre du terminal** : colle le contenu de ton
+  presse-papier directement dans le terminal (commandes, mots de passe…).
+- **Bouton « 📋 Coller depuis le presse-papier » dans le panneau d'import** :
+  transforme ce que tu as copié en fichier ajouté à l'ISO — du texte (tu choisis
+  le nom du fichier) ou même une **photo/capture d'écran copiée** (importée telle
+  quelle en image).
+
+Dans les deux cas une petite fenêtre s'ouvre : soit tu utilises
+**« ⚡ Coller automatiquement »** (sur iPhone, Safari affichera sa bulle
+« Coller » à confirmer — nécessite HTTPS ou localhost), soit tu fais un
+**appui long → Coller** dans la zone de texte, ce qui marche partout, même en
+HTTP sur le réseau local.
+
 ## 📦 Compiler une ISO
 
 1. **Importer** — glisse tes fichiers/dossiers dans la zone d'import (panneau 1).
