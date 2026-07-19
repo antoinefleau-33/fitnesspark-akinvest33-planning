@@ -1,0 +1,23 @@
+{
+  "name": "iso-compiler-terminal",
+  "version": "1.0.0",
+  "description": "Outil web pour compiler des ISO avec un vrai terminal Linux (WSL) + sudo et import de fichiers",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "multer": "^2.0.0",
+    "ws": "^8.18.0"
+  },
+  "optionalDependencies": {
+    "node-pty": "^1.0.0"
+  },
+  "license": "MIT"
+}

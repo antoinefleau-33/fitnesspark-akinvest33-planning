@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ISO Compiler — Terminal Linux (WSL) + sudo</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💿</text></svg>" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1c2230; --border: #2d3646;
+    --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7; --green: #3fb950;
+    --yellow: #d29922; --red: #f85149; --mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    background: linear-gradient(90deg, #161b22, #0d1117); border-bottom: 1px solid var(--border);
+  }
+  header .logo { font-size: 22px; }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .3px; }
+  header .sub { font-size: 11px; color: var(--muted); }
+  header .status { margin-left: auto; display: flex; align-items: center; gap: 14px; font-size: 12px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--red); display: inline-block; box-shadow: 0 0 6px var(--red); }
+  .dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+  main { flex: 1; display: grid; grid-template-columns: 360px 1fr; min-height: 0; }
+  .sidebar { background: var(--panel); border-right: 1px solid var(--border); overflow-y: auto; padding: 14px; }
+  .term-wrap { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .term-bar {
+    display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+    background: var(--panel2); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted);
+  }
+  .term-bar .tcircle { width: 12px; height: 12px; border-radius: 50%; }
+  #terminal { flex: 1; padding: 8px 10px; background: #000; min-height: 0; }
+
+  .card { background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+  .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  .card h2 .n { background: var(--accent); color: #fff; width: 18px; height: 18px; border-radius: 50%; font-size: 11px; display: inline-flex; align-items: center; justify-content: center; }
+
+  label { display: block; font-size: 11px; color: var(--muted); margin: 8px 0 4px; }
+  input[type=text], select {
+    width: 100%; background: #0d1117; border: 1px solid var(--border); color: var(--text);
+    border-radius: 7px; padding: 8px 10px; font-size: 13px; font-family: var(--mono);
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--text); }
+  .check input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+  button {
+    background: var(--accent); color: #fff; border: none; border-radius: 7px; padding: 10px 12px;
+    font-size: 13px; font-weight: 600; cursor: pointer; width: 100%; transition: filter .15s;
+  }
+  button:hover { filter: brightness(1.1); }
+  button.secondary { background: #21262d; border: 1px solid var(--border); }
+  button.danger { background: #21262d; border: 1px solid var(--border); color: var(--red); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+
+  .drop {
+    border: 2px dashed var(--border); border-radius: 10px; padding: 22px 12px; text-align: center;
+    color: var(--muted); font-size: 13px; cursor: pointer; transition: all .15s; background: #0d1117;
+  }
+  .drop.over { border-color: var(--accent); background: rgba(47,129,247,.08); color: var(--text); }
+  .drop .big { font-size: 30px; display: block; margin-bottom: 6px; }
+
+  .files { margin-top: 10px; max-height: 190px; overflow-y: auto; }
+  .file {
+    display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 6px 8px;
+    border-radius: 6px; background: #0d1117; margin-bottom: 5px; font-family: var(--mono);
+  }
+  .file .fn { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file .fs { color: var(--muted); font-size: 11px; }
+  .file .x { color: var(--red); cursor: pointer; padding: 0 4px; }
+  .empty { color: var(--muted); font-size: 12px; text-align: center; padding: 12px; }
+
+  .iso { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 8px; border-radius: 6px; background: #0d1117; margin-bottom: 6px; }
+  .iso .fn { flex: 1; font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .iso a { color: var(--green); text-decoration: none; font-weight: 600; }
+
+  .hint { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+  code { background: #0d1117; border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: var(--mono); font-size: 11px; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #21262d; border: 1px solid var(--border); border-left: 3px solid var(--accent); color: var(--text); padding: 12px 18px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 50; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">💿</span>
+  <div>
+    <h1>ISO Compiler</h1>
+    <div class="sub">Terminal Linux réel (WSL) · sudo · import & compilation d'ISO</div>
+  </div>
+  <div class="status">
+    <span id="envInfo"></span>
+    <span><span class="dot" id="wsDot"></span> <span id="wsText">Connexion…</span></span>
+  </div>
+</header>
+
+<main>
+  <aside class="sidebar">
+    <!-- Import -->
+    <div class="card">
+      <h2><span class="n">1</span> Importer des fichiers</h2>
+      <div class="drop" id="drop">
+        <span class="big">📂</span>
+        Glisse tes fichiers/dossiers ici<br />ou clique pour parcourir
+      </div>
+      <input type="file" id="fileInput" multiple hidden />
+      <div class="files" id="fileList"><div class="empty">Aucun fichier importé</div></div>
+      <button class="danger" id="clearBtn" style="margin-top:8px">Vider la source</button>
+    </div>
+
+    <!-- Paramètres ISO -->
+    <div class="card">
+      <h2><span class="n">2</span> Paramètres de l'ISO</h2>
+      <label>Nom de volume (label)</label>
+      <input type="text" id="label" value="MON_ISO" maxlength="32" />
+      <label>Fichier de sortie</label>
+      <input type="text" id="output" value="image.iso" />
+      <div class="row">
+        <div>
+          <label>Outil</label>
+          <select id="tool">
+            <option value="xorriso">xorriso (recommandé)</option>
+            <option value="genisoimage">genisoimage</option>
+            <option value="mkisofs">mkisofs</option>
+          </select>
+        </div>
+      </div>
+      <label class="check"><input type="checkbox" id="sudo" /> Utiliser <code>sudo</code></label>
+      <button id="buildBtn" style="margin-top:12px">⚙️ Compiler l'ISO</button>
+      <div class="hint">La commande s'exécute dans le terminal à droite. Un éventuel mot de passe <code>sudo</code> se tape directement dans le terminal.</div>
+    </div>
+
+    <!-- ISO produites -->
+    <div class="card">
+      <h2><span class="n">3</span> ISO produites</h2>
+      <div id="isoList"><div class="empty">Aucune ISO pour l'instant</div></div>
+      <button class="secondary" id="refreshIso" style="margin-top:8px">↻ Rafraîchir</button>
+    </div>
+  </aside>
+
+  <section class="term-wrap">
+    <div class="term-bar">
+      <span class="tcircle" style="background:#f85149"></span>
+      <span class="tcircle" style="background:#d29922"></span>
+      <span class="tcircle" style="background:#3fb950"></span>
+      <span style="margin-left:8px">Terminal — <span id="shellName">shell</span></span>
+      <span style="margin-left:auto"><button class="secondary" style="width:auto;padding:4px 10px;font-size:11px" id="clearTerm">clear</button></span>
+    </div>
+    <div id="terminal"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2600);
+  }
+  function fmtSize(b) {
+    if (b < 1024) return b + ' o';
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' Ko';
+    if (b < 1073741824) return (b / 1048576).toFixed(1) + ' Mo';
+    return (b / 1073741824).toFixed(2) + ' Go';
+  }
+
+  // --- Terminal ---
+  const term = new Terminal({
+    fontFamily: "'JetBrains Mono','Cascadia Code',Consolas,monospace",
+    fontSize: 13, cursorBlink: true, scrollback: 5000,
+    theme: { background: '#000000', foreground: '#e6edf3', cursor: '#2f81f7',
+      black: '#0d1117', red: '#f85149', green: '#3fb950', yellow: '#d29922',
+      blue: '#2f81f7', magenta: '#bc8cff', cyan: '#39c5cf', white: '#e6edf3' },
+  });
+  const fit = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  term.open($('terminal'));
+  fit.fit();
+
+  let ws;
+  function connect() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/terminal`);
+    ws.onopen = () => {
+      $('wsDot').classList.add('on'); $('wsText').textContent = 'Terminal connecté';
+      sendResize();
+      term.focus();
+    };
+    ws.onclose = () => {
+      $('wsDot').classList.remove('on'); $('wsText').textContent = 'Déconnecté — reconnexion…';
+      setTimeout(connect, 1500);
+    };
+    ws.onmessage = (ev) => {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === 'output') term.write(msg.data);
+      else if (msg.type === 'exit') term.write(`\r\n\x1b[33m[processus terminé, code ${msg.code}]\x1b[0m\r\n`);
+    };
+  }
+  function sendResize() {
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+  }
+  term.onData((d) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'input', data: d })); });
+  function runInTerminal(cmd) {
+    if (ws && ws.readyState === 1) { ws.send(JSON.stringify({ type: 'run', data: cmd })); term.focus(); }
+  }
+  window.addEventListener('resize', () => { fit.fit(); sendResize(); });
+  connect();
+
+  $('clearTerm').onclick = () => term.clear();
+
+  // --- Env info ---
+  fetch('/api/env').then((r) => r.json()).then((e) => {
+    $('shellName').textContent = (e.shell.file + ' ' + (e.shell.args || []).join(' ')).trim();
+    $('envInfo').textContent = `${e.platform} · ${e.pty ? 'TTY' : 'pipes'}`;
+  });
+
+  // --- Fichiers ---
+  function loadFiles() {
+    fetch('/api/files').then((r) => r.json()).then((d) => {
+      const list = $('fileList');
+      if (!d.files.length) { list.innerHTML = '<div class="empty">Aucun fichier importé</div>'; return; }
+      list.innerHTML = '';
+      d.files.forEach((f) => {
+        const el = document.createElement('div');
+        el.className = 'file';
+        el.innerHTML = `<span>📄</span><span class="fn" title="${f.name}">${f.name}</span><span class="fs">${fmtSize(f.size)}</span><span class="x" title="Supprimer">✕</span>`;
+        el.querySelector('.x').onclick = () => {
+          fetch('/api/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: f.name }) })
+            .then(() => { loadFiles(); toast('Fichier supprimé'); });
+        };
+        list.appendChild(el);
+      });
+    });
+  }
+
+  function uploadFiles(files) {
+    if (!files || !files.length) return;
+    const fd = new FormData();
+    for (const f of files) fd.append('files', f, f.webkitRelativePath || f.name);
+    $('wsText'); toast(`Import de ${files.length} fichier(s)…`);
+    fetch('/api/upload', { method: 'POST', body: fd })
+      .then((r) => r.json())
+      .then((d) => { toast(`${d.uploaded.length} fichier(s) importé(s)`); loadFiles(); })
+      .catch(() => toast('Échec de l\'import'));
+  }
+
+  const drop = $('drop');
+  drop.onclick = () => $('fileInput').click();
+  $('fileInput').onchange = (e) => uploadFiles(e.target.files);
+  ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => uploadFiles(e.dataTransfer.files));
+
+  $('clearBtn').onclick = () => {
+    if (!confirm('Vider tous les fichiers importés ?')) return;
+    fetch('/api/clear-source', { method: 'POST' }).then(() => { loadFiles(); toast('Source vidée'); });
+  };
+
+  // --- ISO produites ---
+  function loadIsos() {
+    fetch('/api/isos').then((r) => r.json()).then((d) => {
+      const list = $('isoList');
+      if (!d.isos.length) { list.innerHTML = '<div class="empty">Aucune ISO pour l\'instant</div>'; return; }
+      list.innerHTML = '';
+      d.isos.forEach((i) => {
+        const el = document.createElement('div');
+        el.className = 'iso';
+        el.innerHTML = `<span>💿</span><span class="fn" title="${i.name}">${i.name}</span><span class="fs" style="color:var(--muted);font-size:11px">${fmtSize(i.size)}</span><a href="/api/download/${encodeURIComponent(i.name)}">⬇ Télécharger</a>`;
+        list.appendChild(el);
+      });
+    });
+  }
+  $('refreshIso').onclick = loadIsos;
+
+  // --- Build ISO ---
+  $('buildBtn').onclick = () => {
+    const body = {
+      label: $('label').value, output: $('output').value,
+      tool: $('tool').value, sudo: $('sudo').checked,
+    };
+    fetch('/api/build-command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.ok) return toast('Erreur : ' + d.error);
+        term.write(`\r\n\x1b[36m▶ Compilation de l'ISO…\x1b[0m\r\n`);
+        runInTerminal(d.command);
+        toast('Compilation lancée dans le terminal');
+        // Rafraîchit la liste des ISO après un délai (la commande tourne en arrière-plan visuel)
+        setTimeout(loadIsos, 4000);
+        setTimeout(loadIsos, 12000);
+      });
+  };
+
+  loadFiles();
+  loadIsos();
+})();
+</script>
+</body>
+</html>
