@@ -1,0 +1,13 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+*.md
+!README.md
+.DS_Store
+tmp
+work
+*.ipa
+*.tipa
+*.p12
+*.mobileprovision

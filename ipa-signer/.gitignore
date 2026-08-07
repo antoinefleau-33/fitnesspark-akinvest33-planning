@@ -1,0 +1,11 @@
+node_modules/
+npm-debug.log*
+.DS_Store
+tmp/
+work/
+# Ne jamais versionner de secrets ou d'artefacts de test
+*.ipa
+*.tipa
+*.p12
+*.pfx
+*.mobileprovision

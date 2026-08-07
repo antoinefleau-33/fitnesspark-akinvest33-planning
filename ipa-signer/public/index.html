@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b0d12" />
+  <title>IPA Signer — Signez vos .ipa / .tipa avec vos certificats</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔏</text></svg>" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-glow"></div>
+
+  <header class="site-header">
+    <div class="brand">
+      <span class="brand-mark">🔏</span>
+      <span class="brand-name">IPA&nbsp;Signer</span>
+    </div>
+    <a class="header-link" href="#aide">Comment ça marche ?</a>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>Signez vos <span class="accent">.ipa</span> / <span class="accent">.tipa</span></h1>
+      <p class="subtitle">
+        Avec <strong>vos propres certificats</strong> Apple (P12&nbsp;+&nbsp;provisioning),
+        achetés par vous-même sur AppleP12.com ou ailleurs. Signature réelle côté serveur, sans Mac.
+      </p>
+    </section>
+
+    <form id="sign-form" class="card">
+      <!-- 1. IPA -->
+      <div class="field">
+        <label class="field-label"><span class="step">1</span> Application à signer <em>(.ipa / .tipa)</em></label>
+        <div class="drop" data-input="ipa" data-accept=".ipa,.tipa">
+          <input type="file" id="ipa" name="ipa" accept=".ipa,.tipa" hidden />
+          <div class="drop-inner">
+            <div class="drop-icon">📦</div>
+            <div class="drop-text"><b>Glissez votre IPA ici</b><span>ou cliquez pour choisir un fichier</span></div>
+          </div>
+          <div class="drop-file" hidden></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <!-- 2. P12 -->
+        <div class="field">
+          <label class="field-label"><span class="step">2</span> Certificat <em>(.p12)</em></label>
+          <div class="drop small" data-input="p12" data-accept=".p12,.pfx">
+            <input type="file" id="p12" name="p12" accept=".p12,.pfx" hidden />
+            <div class="drop-inner">
+              <div class="drop-icon">🔑</div>
+              <div class="drop-text"><b>Certificat P12</b><span>votre clé signée Apple</span></div>
+            </div>
+            <div class="drop-file" hidden></div>
+          </div>
+        </div>
+
+        <!-- 3. Provisioning -->
+        <div class="field">
+          <label class="field-label"><span class="step">3</span> Profil <em>(.mobileprovision)</em></label>
+          <div class="drop small" data-input="mobileprovision" data-accept=".mobileprovision">
+            <input type="file" id="mobileprovision" name="mobileprovision" accept=".mobileprovision" hidden />
+            <div class="drop-inner">
+              <div class="drop-icon">📄</div>
+              <div class="drop-text"><b>Provisioning</b><span>lié à votre certificat</span></div>
+            </div>
+            <div class="drop-file" hidden></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Password -->
+      <div class="field">
+        <label class="field-label" for="password"><span class="step">4</span> Mot de passe du certificat P12</label>
+        <div class="pw-wrap">
+          <input type="password" id="password" name="password" placeholder="Mot de passe défini à l'achat du P12" autocomplete="off" />
+          <button type="button" class="pw-toggle" id="pw-toggle" aria-label="Afficher le mot de passe">👁️</button>
+        </div>
+        <p class="hint">Certains P12 n'ont pas de mot de passe — laissez vide dans ce cas.</p>
+      </div>
+
+      <!-- Options -->
+      <details class="options">
+        <summary>Options avancées (facultatif)</summary>
+        <div class="grid-2">
+          <div class="field">
+            <label class="field-label" for="bundleId">Nouveau Bundle ID</label>
+            <input type="text" id="bundleId" name="bundleId" placeholder="com.exemple.app" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="bundleName">Nouveau nom d'app</label>
+            <input type="text" id="bundleName" name="bundleName" placeholder="Mon App" autocomplete="off" />
+          </div>
+        </div>
+        <p class="hint">Laissez vide pour conserver les valeurs d'origine de l'IPA.</p>
+      </details>
+
+      <button type="submit" id="submit-btn" class="btn-primary">
+        <span class="btn-label">Signer l'IPA</span>
+      </button>
+
+      <div id="status" class="status" hidden></div>
+    </form>
+
+    <section class="privacy">
+      <span class="lock">🛡️</span>
+      Vos fichiers et votre certificat sont traités le temps de la signature puis
+      <strong>supprimés immédiatement</strong>. Le mot de passe n'est jamais enregistré ni journalisé.
+    </section>
+
+    <section id="aide" class="help">
+      <h2>Comment ça marche&nbsp;?</h2>
+      <ol>
+        <li><b>Procurez-vous un certificat.</b> Achetez un certificat de développeur Apple (fichier <code>.p12</code> + son mot de passe) et le profil <code>.mobileprovision</code> associé — par exemple sur <a href="https://applep12.com" target="_blank" rel="noopener noreferrer">AppleP12.com</a>. Ce sont <b>vos</b> signatures, payées par vous.</li>
+        <li><b>Déposez les 3 fichiers</b> ci-dessus : l'app (<code>.ipa</code>/<code>.tipa</code>), le certificat (<code>.p12</code>) et le profil (<code>.mobileprovision</code>), puis saisissez le mot de passe du P12.</li>
+        <li><b>Signez.</b> Le serveur re-signe l'application avec votre certificat (via <code>zsign</code>) et vous renvoie un IPA signé.</li>
+        <li><b>Installez.</b> Téléchargez l'IPA signé et installez-le (AltStore, Sideloadly, TrollStore, ou tout gestionnaire compatible avec votre profil).</li>
+      </ol>
+      <p class="note">Cet outil ne fournit aucun certificat : il n'utilise que celui que vous apportez. Il ne contourne aucune protection — il applique simplement votre propre signature, comme le ferait Xcode.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>Signature locale via <code>zsign</code> · Vos certificats, vos règles.</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# Déploiement gratuit sur Render (https://render.com) — Blueprint.
+# Prérequis : la racine du service doit pointer vers le dossier "ipa-signer".
+# Le plan "free" suffit ; il se met en veille après inactivité et se réveille
+# à la première requête (~30 s de démarrage à froid).
+services:
+  - type: web
+    name: ipa-signer
+    runtime: docker
+    plan: free
+    rootDir: ipa-signer
+    dockerfilePath: Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: MAX_UPLOAD_MB
+        value: "1024"
