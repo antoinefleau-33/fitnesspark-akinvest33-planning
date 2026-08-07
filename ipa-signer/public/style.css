@@ -193,6 +193,40 @@ input::placeholder { color: #5f6b83; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+.btn-ghost {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--text); background: var(--card-2); }
+.btn-ghost:disabled { opacity: .6; cursor: not-allowed; }
+
+.diag-table { width: 100%; border-collapse: collapse; margin: 12px 0 6px; text-align: left; }
+.diag-table td { padding: 6px 8px; font-size: 13.5px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.diag-table td:first-child { color: var(--muted); width: 42%; white-space: nowrap; }
+.diag-table td:last-child { color: var(--text); font-weight: 600; word-break: break-word; }
+
+.diag-note {
+  margin-top: 10px; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.55;
+  text-align: left; border: 1px solid var(--border); background: var(--card-2);
+}
+.diag-note.ok   { border-color: #1f6b4d; background: #10241c; color: #a7f3d0; }
+.diag-note.warn { border-color: #6b5320; background: rgba(245,158,11,.1); color: #fde68a; }
+.diag-note.err  { border-color: #6b2a2a; background: #241313; color: #fecaca; }
+.diag-note.info { color: #bcd0ff; }
+.diag-note code.udids {
+  display: block; margin: 6px 0; padding: 8px; background: rgba(0,0,0,.35);
+  border-radius: 8px; font-size: 12px; color: #cdd8ef;
+}
+
 .status {
   margin-top: 16px;
   padding: 13px 15px;

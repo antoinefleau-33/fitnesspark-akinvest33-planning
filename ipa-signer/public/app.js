@@ -196,6 +196,105 @@ function showResult(data) {
   statusBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+// ---- Diagnostic certificat / profil ----
+const diagBox = document.getElementById('diag');
+const inspectBtn = document.getElementById('inspect-btn');
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+inspectBtn.addEventListener('click', () => {
+  const p12 = document.getElementById('p12').files[0];
+  const prov = document.getElementById('mobileprovision').files[0];
+  if (!prov) {
+    diagBox.hidden = false;
+    diagBox.className = 'status err';
+    diagBox.textContent = 'Ajoute au moins ton profil .mobileprovision pour le diagnostic.';
+    return;
+  }
+  const fd = new FormData();
+  fd.append('mobileprovision', prov);
+  if (p12) fd.append('p12', p12);
+  fd.append('password', document.getElementById('password').value || '');
+
+  inspectBtn.disabled = true;
+  inspectBtn.textContent = '🔍 Analyse…';
+  diagBox.hidden = false;
+  diagBox.className = 'status info';
+  diagBox.textContent = 'Analyse du profil…';
+
+  fetch('/api/inspect', { method: 'POST', body: fd })
+    .then((r) => r.json())
+    .then((data) => {
+      inspectBtn.disabled = false;
+      inspectBtn.textContent = '🔍 Vérifier mon certificat / profil';
+      if (!data.ok) {
+        diagBox.className = 'status err';
+        diagBox.textContent = '❌ ' + (data.error || 'Diagnostic impossible.');
+        return;
+      }
+      renderDiag(data);
+    })
+    .catch(() => {
+      inspectBtn.disabled = false;
+      inspectBtn.textContent = '🔍 Vérifier mon certificat / profil';
+      diagBox.className = 'status err';
+      diagBox.textContent = 'Erreur réseau pendant le diagnostic.';
+    });
+});
+
+function renderDiag(data) {
+  const p = data.profile;
+  const rows = [];
+  rows.push(['Profil', p.name || '—']);
+  rows.push(['App', p.appIdName || '—']);
+  rows.push(['Bundle ID', p.appId || '—']);
+  rows.push(['Équipe', p.teamName || '—']);
+  const typeLabel = { entreprise: 'Entreprise', 'ad-hoc': 'Ad-hoc', 'développement': 'Développement' }[p.type] || p.type;
+  rows.push(['Type', typeLabel]);
+  if (p.expiration) {
+    const d = new Date(p.expiration);
+    rows.push(['Expiration', d.toLocaleDateString('fr-FR') + (p.expired ? ' — ⚠️ EXPIRÉ' : '')]);
+  }
+  if (p.deviceCount === null) rows.push(['Appareils', 'Tous (profil entreprise)']);
+  else rows.push(['Appareils autorisés', String(p.deviceCount)]);
+
+  let html = '<div class="result-title">🔍 Diagnostic</div>';
+  html += '<table class="diag-table">';
+  for (const [k, v] of rows) html += `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`;
+  html += '</table>';
+
+  // Interprétation orientée « pourquoi l'install échoue ».
+  const notes = [];
+  if (p.expired) {
+    notes.push(['err', '⛔ Le profil est <b>expiré</b> → re-signer est impossible tant que tu n\'as pas un profil valide.']);
+  }
+  if (p.type === 'entreprise') {
+    notes.push(['ok', '✅ Profil <b>entreprise</b> : installable sur n\'importe quel iPhone. Si l\'install échoue quand même (« intégrité non vérifiée »), c\'est presque toujours que le <b>certificat est révoqué</b> par Apple → il faut en racheter un.']);
+  } else {
+    notes.push(['warn', `⚠️ Profil <b>${esc(typeLabel).toLowerCase()}</b> : il ne marche QUE sur les <b>${p.deviceCount} appareil(s)</b> dont l\'UDID est enregistré dedans. Si l\'<b>UDID de cet iPhone n\'est pas dans la liste</b>, tu obtiens exactement l\'erreur « intégrité non vérifiée ».`]);
+    if (p.devices && p.devices.length) {
+      notes.push(['info', 'UDID autorisés dans ce profil :<br><code class="udids">' + p.devices.map(esc).join('<br>') + '</code>Compare avec l\'UDID de ton iPhone (voir ci-dessous).']);
+    }
+    notes.push(['info', '📱 <b>Trouver l\'UDID de cet iPhone</b> : Réglages → Général → Informations → touche « Identifiant » pour le copier, ou branche-le et regarde dans les Réglages de l\'appareil. Il doit figurer dans la liste au-dessus. Sinon, redemande au vendeur (AppleP12) un profil incluant cet UDID.']);
+  }
+  if (data.cert) {
+    const map = { 'valide': 'ok', 'révoqué': 'err', 'expiré': 'err', 'mot de passe P12 incorrect': 'err', 'inconnu': 'info' };
+    notes.push([map[data.cert.status] || 'info', 'Certificat P12 : <b>' + esc(data.cert.status) + '</b>' + (data.cert.status === 'révoqué' ? ' → il faut en racheter un.' : '')]);
+  } else {
+    notes.push(['info', '💡 Ajoute aussi ton <b>.p12</b> et son mot de passe puis relance le diagnostic pour vérifier si le certificat est <b>révoqué</b>.']);
+  }
+
+  for (const [kind, text] of notes) html += `<div class="diag-note ${kind}">${text}</div>`;
+
+  diagBox.className = 'status result';
+  diagBox.innerHTML = html;
+  diagBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 // ---- Soumission ----
 form.addEventListener('submit', (e) => {
   e.preventDefault();

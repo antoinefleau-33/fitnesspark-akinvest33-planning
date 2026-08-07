@@ -182,6 +182,63 @@ function publicBase(req) {
 
 const HEX_ID = /^[a-f0-9]{8,32}$/;
 
+// Analyse un fichier .mobileprovision (CMS DER contenant un plist XML en clair).
+function parseProvision(buf) {
+  const text = buf.toString('latin1');
+  const start = text.indexOf('<?xml');
+  const end = text.indexOf('</plist>');
+  if (start === -1 || end === -1) return null;
+  const xml = text.slice(start, end + '</plist>'.length);
+
+  const str = (key) => {
+    const m = xml.match(new RegExp('<key>' + key + '</key>\\s*<string>([^<]*)</string>'));
+    return m ? m[1].trim() : '';
+  };
+  const datev = (key) => {
+    const m = xml.match(new RegExp('<key>' + key + '</key>\\s*<date>([^<]*)</date>'));
+    return m ? m[1].trim() : '';
+  };
+  const isTrue = (key) =>
+    new RegExp('<key>' + key + '</key>\\s*<true\\s*/>').test(xml);
+
+  let devices = [];
+  const dm = xml.match(/<key>ProvisionedDevices<\/key>\s*<array>([\s\S]*?)<\/array>/);
+  if (dm) {
+    devices = (dm[1].match(/<string>([^<]*)<\/string>/g) || [])
+      .map((s) => s.replace(/<\/?string>/g, '').trim());
+  }
+
+  return {
+    name: str('Name'),
+    appIdName: str('AppIDName'),
+    teamName: str('TeamName'),
+    appId: str('application-identifier'),
+    creation: datev('CreationDate'),
+    expiration: datev('ExpirationDate'),
+    provisionsAllDevices: isTrue('ProvisionsAllDevices'),
+    getTaskAllow: isTrue('get-task-allow'),
+    devices,
+    certCount: (xml.match(/<data>/g) || []).length,
+  };
+}
+
+// Vérifie un p12 avec zsign (-C : validité + révocation OCSP). Best-effort.
+function checkCert(p12Path, password) {
+  return new Promise((resolve) => {
+    const args = ['-C', '-k', p12Path];
+    if (password) args.push('-p', password);
+    execFile(ZSIGN_BIN, args, { timeout: 30000 }, (error, stdout, stderr) => {
+      const out = sanitizeLog((stdout || '') + '\n' + (stderr || ''));
+      let status = 'inconnu';
+      if (/revoked|révoqué/i.test(out)) status = 'révoqué';
+      else if (/expired|expiré/i.test(out)) status = 'expiré';
+      else if (/valid|good|ok/i.test(out) && !error) status = 'valide';
+      else if (/password|mac verify|decrypt/i.test(out)) status = 'mot de passe P12 incorrect';
+      resolve({ status, log: out });
+    });
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
@@ -230,6 +287,68 @@ app.get('/api/health', (req, res) => {
     });
   });
 });
+
+// Diagnostic : analyse un profil de provisioning (+ éventuellement un p12).
+app.post(
+  '/api/inspect',
+  (req, res, next) => {
+    upload.fields([
+      { name: 'p12', maxCount: 1 },
+      { name: 'mobileprovision', maxCount: 1 },
+    ])(req, res, (err) => {
+      if (err) {
+        cleanup(req.jobDir);
+        return res.status(400).json({ ok: false, error: `Erreur d'upload : ${err.message}` });
+      }
+      next();
+    });
+  },
+  async (req, res) => {
+    const jobDir = req.jobDir;
+    const files = req.files || {};
+    const body = req.body || {};
+    try {
+      const provFile = files.mobileprovision && files.mobileprovision[0];
+      const p12File = files.p12 && files.p12[0];
+      if (!provFile) throw new Error('Ajoutez au moins le profil .mobileprovision.');
+
+      const prov = parseProvision(await fsp.readFile(provFile.path));
+      if (!prov) throw new Error('Profil illisible (fichier .mobileprovision invalide ?).');
+
+      const now = Date.now();
+      const expMs = prov.expiration ? Date.parse(prov.expiration) : NaN;
+      const expired = !isNaN(expMs) && expMs < now;
+      const type = prov.provisionsAllDevices
+        ? 'entreprise'
+        : (prov.getTaskAllow ? 'développement' : 'ad-hoc');
+
+      let cert = null;
+      if (p12File) {
+        cert = await checkCert(p12File.path, (body.password || '').toString());
+      }
+
+      await cleanup(jobDir);
+      res.json({
+        ok: true,
+        profile: {
+          name: prov.name,
+          appIdName: prov.appIdName,
+          teamName: prov.teamName,
+          appId: prov.appId,
+          type,
+          expiration: prov.expiration,
+          expired,
+          deviceCount: prov.provisionsAllDevices ? null : prov.devices.length,
+          devices: prov.devices,
+        },
+        cert,
+      });
+    } catch (e) {
+      await cleanup(jobDir);
+      res.status(400).json({ ok: false, error: e.message || 'Erreur inconnue.' });
+    }
+  }
+);
 
 app.post(
   '/api/sign',
