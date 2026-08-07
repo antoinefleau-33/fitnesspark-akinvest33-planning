@@ -1,0 +1,8 @@
+.git
+node_modules
+ipa-signer/node_modules
+**/*.ipa
+**/*.tipa
+**/*.p12
+**/*.pfx
+**/*.mobileprovision
