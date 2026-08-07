@@ -108,6 +108,94 @@ function setStatus(kind, message, log) {
   }
 }
 
+// ---- Détection navigateur iOS non-Safari (l'OTA n'y marche pas) ----
+function iosNonSafari() {
+  const ua = navigator.userAgent;
+  const isIOS = /iPhone|iPad|iPod/.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isSafari = /Safari/.test(ua) && !/(CriOS|FxiOS|EdgiOS|OPiOS|Chrome)/.test(ua);
+  return isIOS && !isSafari;
+}
+
+// ---- Affiche le résultat de signature (installation OTA + téléchargement) ----
+function showResult(data) {
+  statusBox.hidden = false;
+  statusBox.className = 'status ok result';
+  statusBox.innerHTML = '';
+
+  const title = document.createElement('div');
+  title.className = 'result-title';
+  title.textContent = '✅ ' + (data.appName ? data.appName + ' — signé !' : 'IPA signé avec succès !');
+  statusBox.appendChild(title);
+
+  if (data.bundleId || data.version) {
+    const info = document.createElement('div');
+    info.className = 'result-info';
+    info.textContent =
+      (data.bundleId ? data.bundleId : '') +
+      (data.version ? '  ·  v' + data.version : '');
+    statusBox.appendChild(info);
+  }
+
+  // Bouton principal : installation directe sur iPhone (OTA).
+  const install = document.createElement('a');
+  install.className = 'btn-install';
+  install.href = data.installUrl;
+  install.innerHTML = '📲 Installer sur cet iPhone';
+  statusBox.appendChild(install);
+
+  const help = document.createElement('p');
+  help.className = 'result-hint';
+  help.innerHTML =
+    'Depuis l’<b>iPhone</b>, ouvre cette page dans <b>Safari</b> et touche le bouton ci-dessus : ' +
+    'iOS proposera d’installer l’app. Accepte la fenêtre « Installer&nbsp;? ».';
+  statusBox.appendChild(help);
+
+  if (!data.https) {
+    const warn = document.createElement('p');
+    warn.className = 'result-warn';
+    warn.innerHTML = '⚠️ L’installation OTA exige le <b>HTTPS</b>. En local (http) le bouton ne fonctionnera pas — déploie le site (Render) pour l’utiliser.';
+    statusBox.appendChild(warn);
+  } else if (iosNonSafari()) {
+    const warn = document.createElement('p');
+    warn.className = 'result-warn';
+    warn.innerHTML = '⚠️ Tu n’es pas dans <b>Safari</b>. L’installation OTA ne marche que dans Safari — copie le lien et ouvre-le dans Safari.';
+    statusBox.appendChild(warn);
+  }
+
+  // Actions secondaires : télécharger le fichier, copier le lien d'installation.
+  const row = document.createElement('div');
+  row.className = 'result-actions';
+
+  const dl = document.createElement('a');
+  dl.className = 'btn-secondary';
+  dl.href = data.downloadUrl;
+  dl.setAttribute('download', data.name || 'app-signed.ipa');
+  dl.textContent = '⬇️ Télécharger l’IPA';
+  row.appendChild(dl);
+
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.className = 'btn-secondary';
+  copy.textContent = '🔗 Copier le lien d’installation';
+  copy.addEventListener('click', () => {
+    const link = location.origin + data.downloadUrl;
+    navigator.clipboard?.writeText(link).then(
+      () => { copy.textContent = '✓ Lien copié'; setTimeout(() => (copy.textContent = '🔗 Copier le lien d’installation'), 2000); },
+      () => { copy.textContent = link; }
+    );
+  });
+  row.appendChild(copy);
+  statusBox.appendChild(row);
+
+  const expiry = document.createElement('p');
+  expiry.className = 'result-expiry';
+  expiry.textContent = '⏳ Lien valable environ ' + (data.expiresInMin || 30) + ' min, puis le fichier est supprimé du serveur.';
+  statusBox.appendChild(expiry);
+
+  statusBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 // ---- Soumission ----
 form.addEventListener('submit', (e) => {
   e.preventDefault();
@@ -128,7 +216,7 @@ form.addEventListener('submit', (e) => {
 
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/sign');
-  xhr.responseType = 'blob';
+  xhr.responseType = 'json';
 
   xhr.upload.addEventListener('progress', (ev) => {
     if (ev.lengthComputable) {
@@ -142,31 +230,15 @@ form.addEventListener('submit', (e) => {
     submitBtn.disabled = false;
     submitBtn.classList.remove('loading');
 
-    const ct = xhr.getResponseHeader('Content-Type') || '';
-    if (xhr.status === 200 && ct.indexOf('application/json') === -1) {
-      // Succès : on a reçu l'IPA signé.
-      const blob = xhr.response;
-      const url = URL.createObjectURL(blob);
-      const base = ipa.name.replace(/\.(ipa|tipa)$/i, '');
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = base + '-signed.ipa';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-      setStatus('ok', '✅ IPA signé avec succès — le téléchargement a démarré. Vous pouvez maintenant l’installer.');
-      return;
-    }
+    let data = xhr.response;
+    if (typeof data === 'string') { try { data = JSON.parse(data); } catch (_) { data = null; } }
+    if (!data) data = {};
 
-    // Erreur : le corps est du JSON, même en responseType blob.
-    const reader = new FileReader();
-    reader.onload = () => {
-      let data = {};
-      try { data = JSON.parse(reader.result); } catch (_) {}
+    if (xhr.status === 200 && data.ok) {
+      showResult(data);
+    } else {
       setStatus('err', '❌ ' + (data.error || `Échec (code ${xhr.status}).`), data.log);
-    };
-    reader.readAsText(xhr.response);
+    }
   };
 
   xhr.onerror = () => {

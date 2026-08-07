@@ -20,7 +20,13 @@ const os = require('os');
 const path = require('path');
 
 const app = express();
+// Render/Fly/HF terminent le TLS en amont : on fait confiance au proxy pour
+// que req.protocol reflète bien "https" (indispensable pour le lien OTA).
+app.set('trust proxy', true);
 const PORT = process.env.PORT || 3000;
+
+// Durée de conservation d'un IPA signé pour permettre l'installation OTA (minutes).
+const RETENTION_MIN = parseInt(process.env.RETENTION_MIN || '30', 10);
 
 // Emplacement du binaire zsign (surchargé dans l'image Docker si besoin).
 const ZSIGN_BIN = process.env.ZSIGN_BIN || 'zsign';
@@ -110,10 +116,111 @@ function sanitizeLog(text) {
     .join('\n');
 }
 
+// Extrait AppName / BundleId / Version depuis la sortie de zsign.
+// zsign imprime toujours (cf. src/bundle.cpp) :
+//   >>> AppName: 	<nom>
+//   >>> BundleId: 	<id>
+//   >>> Version: 	<version>
+function parseAppMeta(text) {
+  const clean = String(text).replace(/\x1b\[[0-9;]*m/g, ''); // eslint-disable-line no-control-regex
+  const grab = (label) => {
+    const m = clean.match(new RegExp('>>>\\s*' + label + ':\\s*([^\\n]+)', 'i'));
+    return m ? m[1].trim() : '';
+  };
+  // Pour BundleId, zsign peut imprimer "ancien -> nouveau" ; on garde le dernier.
+  let bundleId = grab('BundleId');
+  if (bundleId.includes('->')) bundleId = bundleId.split('->').pop().split(',')[0].trim();
+  return {
+    appName: grab('AppName'),
+    bundleId,
+    version: grab('Version') || '1.0',
+  };
+}
+
+function xmlEscape(s) {
+  return String(s).replace(/[<>&'"]/g, (c) =>
+    ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c])
+  );
+}
+
+// Manifeste OTA (plist) attendu par iOS pour une installation itms-services://.
+function buildManifest({ ipaUrl, bundleId, version, title }) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>items</key>
+  <array>
+    <dict>
+      <key>assets</key>
+      <array>
+        <dict>
+          <key>kind</key><string>software-package</string>
+          <key>url</key><string>${xmlEscape(ipaUrl)}</string>
+        </dict>
+      </array>
+      <key>metadata</key>
+      <dict>
+        <key>bundle-identifier</key><string>${xmlEscape(bundleId || 'com.app.signed')}</string>
+        <key>bundle-version</key><string>${xmlEscape(version || '1.0')}</string>
+        <key>kind</key><string>software</string>
+        <key>title</key><string>${xmlEscape(title || 'App')}</string>
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>
+`;
+}
+
+// Base absolue https du service (Render fournit https via X-Forwarded-Proto).
+function publicBase(req) {
+  const proto = (req.protocol === 'https' || req.get('x-forwarded-proto') === 'https')
+    ? 'https' : req.protocol;
+  return `${proto}://${req.get('host')}`;
+}
+
+const HEX_ID = /^[a-f0-9]{8,32}$/;
+
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Sert l'IPA signé conservé temporairement (pour download direct + OTA).
+app.get('/f/:id/app.ipa', (req, res) => {
+  const id = req.params.id;
+  if (!HEX_ID.test(id)) return res.status(400).send('id invalide');
+  const dir = path.join(WORK_ROOT, id);
+  const ipa = path.join(dir, 'signed.ipa');
+  if (!fs.existsSync(ipa)) return res.status(404).send('Lien expiré ou introuvable.');
+  let name = 'app-signed.ipa';
+  try { name = JSON.parse(fs.readFileSync(path.join(dir, 'meta.json'))).name || name; } catch (_) {}
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.download(ipa, name);
+});
+
+// Sert le manifeste OTA (plist) pour l'installation itms-services://.
+app.get('/f/:id/manifest.plist', (req, res) => {
+  const id = req.params.id;
+  if (!HEX_ID.test(id)) return res.status(400).send('id invalide');
+  const dir = path.join(WORK_ROOT, id);
+  let meta;
+  try { meta = JSON.parse(fs.readFileSync(path.join(dir, 'meta.json'))); } catch (_) {
+    return res.status(404).send('Lien expiré ou introuvable.');
+  }
+  if (!fs.existsSync(path.join(dir, 'signed.ipa'))) {
+    return res.status(404).send('Lien expiré ou introuvable.');
+  }
+  const xml = buildManifest({
+    ipaUrl: `${publicBase(req)}/f/${id}/app.ipa`,
+    bundleId: meta.bundleId,
+    version: meta.version,
+    title: meta.appName || meta.name,
+  });
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  res.send(xml);
+});
 
 app.get('/api/health', (req, res) => {
   execFile(ZSIGN_BIN, ['-v'], { timeout: 10000 }, (error, stdout, stderr) => {
@@ -192,9 +299,38 @@ app.post(
         return res.status(422).json({ ok: false, error: hint, log });
       }
 
-      res.download(outPath, outName, async () => {
-        await cleanup(jobDir);
+      // Signature OK : on extrait les métadonnées et on conserve l'IPA quelques
+      // minutes pour permettre l'installation directe sur iPhone (OTA).
+      const meta = parseAppMeta(stdout);
+      const record = {
+        name: outName,
+        appName: meta.appName,
+        bundleId: meta.bundleId,
+        version: meta.version,
+        createdAt: Date.now(),
+      };
+      try {
+        await fsp.writeFile(path.join(jobDir, 'meta.json'), JSON.stringify(record));
+      } catch (_) {}
+
+      const base = publicBase(req);
+      const id = req.jobId;
+      const manifestUrl = `${base}/f/${id}/manifest.plist`;
+      res.json({
+        ok: true,
+        id,
+        name: outName,
+        appName: meta.appName,
+        bundleId: meta.bundleId,
+        version: meta.version,
+        downloadUrl: `/f/${id}/app.ipa`,
+        manifestUrl,
+        // Lien qu'iOS/Safari comprend pour installer sans ordinateur.
+        installUrl: `itms-services://?action=download-manifest&url=${encodeURIComponent(manifestUrl)}`,
+        expiresInMin: RETENTION_MIN,
+        https: base.startsWith('https'),
       });
+      // NB : le dossier n'est PAS supprimé ici ; il expire via le balayage périodique.
     } catch (e) {
       await cleanup(jobDir);
       res.status(400).json({ ok: false, error: e.message || 'Erreur inconnue.' });
@@ -202,7 +338,7 @@ app.post(
   }
 );
 
-// Filet de sécurité : purge les jobs orphelins de plus d'une heure.
+// Balayage périodique : purge les IPA signés au-delà de la durée de rétention.
 setInterval(async () => {
   try {
     const entries = await fsp.readdir(WORK_ROOT);
@@ -211,11 +347,11 @@ setInterval(async () => {
       const p = path.join(WORK_ROOT, name);
       try {
         const st = await fsp.stat(p);
-        if (now - st.mtimeMs > 60 * 60 * 1000) await cleanup(p);
+        if (now - st.mtimeMs > RETENTION_MIN * 60 * 1000) await cleanup(p);
       } catch (_) {}
     }
   } catch (_) {}
-}, 15 * 60 * 1000).unref();
+}, 5 * 60 * 1000).unref();
 
 app.listen(PORT, () => {
   console.log(`IPA Signer à l'écoute sur le port ${PORT}`);

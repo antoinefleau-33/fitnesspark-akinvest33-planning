@@ -115,8 +115,9 @@
         <li><b>Procurez-vous un certificat.</b> Achetez un certificat de développeur Apple (fichier <code>.p12</code> + son mot de passe) et le profil <code>.mobileprovision</code> associé — par exemple sur <a href="https://applep12.com" target="_blank" rel="noopener noreferrer">AppleP12.com</a>. Ce sont <b>vos</b> signatures, payées par vous.</li>
         <li><b>Déposez les 3 fichiers</b> ci-dessus : l'app (<code>.ipa</code>/<code>.tipa</code>), le certificat (<code>.p12</code>) et le profil (<code>.mobileprovision</code>), puis saisissez le mot de passe du P12.</li>
         <li><b>Signez.</b> Le serveur re-signe l'application avec votre certificat (via <code>zsign</code>) et vous renvoie un IPA signé.</li>
-        <li><b>Installez.</b> Téléchargez l'IPA signé et installez-le (AltStore, Sideloadly, TrollStore, ou tout gestionnaire compatible avec votre profil).</li>
+        <li><b>Installez — sans ordinateur.</b> Depuis l'<b>iPhone</b>, ouvrez ce site dans <b>Safari</b>, signez, puis touchez <b>« 📲 Installer sur cet iPhone »</b> : iOS installe l'app directement (installation OTA). Vous pouvez aussi simplement <b>télécharger l'IPA</b> pour l'installer via AltStore, Sideloadly ou TrollStore.</li>
       </ol>
+      <p class="note"><b>Après l'installation</b>, si l'app ne s'ouvre pas : allez dans <b>Réglages → Général → VPN et gestion de l'appareil</b>, sélectionnez votre profil/développeur et touchez <b>« Faire confiance »</b>. L'app doit aussi correspondre à votre certificat : identifiant d'appareil (UDID) inclus dans le profil pour un certificat de développement, ou certificat d'entreprise valide et non révoqué.</p>
       <p class="note">Cet outil ne fournit aucun certificat : il n'utilise que celui que vous apportez. Il ne contourne aucune protection — il applique simplement votre propre signature, comme le ferait Xcode.</p>
     </section>
   </main>

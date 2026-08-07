@@ -216,6 +216,51 @@ input::placeholder { color: #5f6b83; }
   word-break: break-word;
 }
 
+/* Panneau de résultat + installation OTA */
+.status.result { text-align: center; }
+.result-title { font-size: 17px; font-weight: 700; color: #d1fae5; }
+.result-info {
+  font-size: 12.5px; color: #86efac; margin-top: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.btn-install {
+  display: block;
+  margin: 16px auto 6px;
+  padding: 15px 18px;
+  border-radius: 13px;
+  background: linear-gradient(180deg, #34d399, #10b981);
+  color: #06231a;
+  font-size: 17px;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, .35);
+  transition: filter .15s, transform .05s;
+}
+.btn-install:hover { filter: brightness(1.05); }
+.btn-install:active { transform: translateY(1px); }
+.result-hint { color: #b7f0d8; font-size: 13px; margin: 6px 2px 0; line-height: 1.55; }
+.result-warn {
+  color: #fde68a; font-size: 13px; margin: 10px 0 0;
+  background: rgba(245, 158, 11, .12); border: 1px solid #6b5320;
+  padding: 9px 12px; border-radius: 10px;
+}
+.result-actions {
+  display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+  margin-top: 16px;
+}
+.btn-secondary {
+  padding: 10px 14px;
+  border-radius: 11px;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--text);
+  font-size: 13.5px; font-weight: 600;
+  text-decoration: none; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.btn-secondary:hover { border-color: var(--accent); background: #1f2536; }
+.result-expiry { color: #7f8aa3; font-size: 12px; margin: 14px 0 0; }
+
 .privacy {
   margin: 18px 2px 0;
   color: var(--muted);

@@ -18,7 +18,11 @@ La signature est **réelle** et se fait côté serveur grâce à
 
 1. Vous déposez : l'app (`.ipa`/`.tipa`), votre certificat (`.p12`), votre profil (`.mobileprovision`) + le mot de passe du P12.
 2. Le serveur re-signe l'app avec `zsign`.
-3. Vous téléchargez l'`.ipa` signé, prêt à installer.
+3. Vous récupérez l'`.ipa` signé — au choix :
+   - **📲 Installation directe sur iPhone (OTA)**, sans ordinateur : ouvrez le site dans **Safari**, signez, touchez **« Installer sur cet iPhone »**. Le serveur génère un manifeste `itms-services://` et iOS installe l'app. *(Nécessite le HTTPS — donc le site déployé, pas en local http.)*
+   - **⬇️ Téléchargement** de l'IPA signé (pour AltStore, Sideloadly, TrollStore…).
+
+> **Après l'installation OTA**, si l'app ne s'ouvre pas : *Réglages → Général → VPN et gestion de l'appareil* → sélectionnez votre profil → **Faire confiance**. L'app doit correspondre à votre certificat (UDID dans le profil pour un cert. de développement, ou cert. d'entreprise valide).
 
 **Confidentialité :** chaque signature s'exécute dans un dossier temporaire isolé,
 supprimé immédiatement après l'envoi de la réponse. Le mot de passe n'est **jamais**
@@ -114,6 +118,7 @@ Offre gratuite avec petites machines qui s'éteignent au repos et redémarrent �
 | `MAX_UPLOAD_MB` | `2048`               | Taille max d'un fichier uploadé (Mo)             |
 | `ZSIGN_BIN`     | `zsign`              | Chemin du binaire zsign                          |
 | `WORK_ROOT`     | `<tmp>/ipa-signer`   | Dossier des jobs temporaires                     |
+| `RETENTION_MIN` | `30`                 | Durée (min) de conservation d'un IPA signé pour l'OTA |
 
 ---
 
@@ -126,7 +131,10 @@ Offre gratuite avec petites machines qui s'éteignent au repos et redémarrent �
   - `mobileprovision` *(fichier, requis)* — profil de provisioning
   - `password` *(texte)* — mot de passe du P12 (vide si aucun)
   - `bundleId`, `bundleName` *(texte, facultatifs)* — pour modifier l'identité de l'app
-  - **Réponse** : le fichier `.ipa` signé (200), ou un JSON `{ ok:false, error, log }` en cas d'échec.
+  - **Réponse (succès)** : JSON `{ ok:true, id, name, appName, bundleId, version, downloadUrl, manifestUrl, installUrl, expiresInMin }`.
+  - **Réponse (échec)** : JSON `{ ok:false, error, log }`.
+- `GET /f/:id/app.ipa` → l'IPA signé (téléchargement), disponible ~`RETENTION_MIN` min.
+- `GET /f/:id/manifest.plist` → le manifeste OTA (plist) référencé par `installUrl`.
 
 ---
 
