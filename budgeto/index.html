@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#4f46e5">
 <title>Budgeto — Ton budget, enfin simple</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234f46e5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='6' width='18' height='14' rx='3'/><path d='M3 10h18'/><circle cx='17' cy='15' r='1.4'/></svg>">
 <style>
 :root{
   --bg:#f4f5fb; --card:#ffffff; --text:#1f2430; --muted:#6b7280; --border:#e6e8f0;
@@ -24,15 +24,17 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Hel
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
 input,select{font-family:inherit;font-size:16px}
 .wrap{max-width:520px;margin:0 auto;padding:0 16px}
+.ic{display:inline-block;vertical-align:middle;flex:none}
 
 /* HEADER */
 header{position:sticky;top:0;z-index:30;background:var(--bg);padding-top:max(14px,env(safe-area-inset-top))}
 .brand{display:flex;align-items:center;justify-content:space-between;padding:6px 0 12px}
-.brand h1{font-size:22px;margin:0;font-weight:800;letter-spacing:-.5px;display:flex;align-items:center;gap:8px}
+.brand h1{font-size:22px;margin:0;font-weight:800;letter-spacing:-.5px;display:flex;align-items:center;gap:8px;color:var(--primary)}
+.brand h1 span.nm{color:var(--text)}
 .pill{font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;background:var(--primary-soft);color:var(--primary)}
 .pill.pro{background:linear-gradient(135deg,#f59e0b,#f43f5e);color:#fff}
 .icon-btn{width:38px;height:38px;border-radius:12px;background:var(--card);box-shadow:var(--shadow);
-  display:flex;align-items:center;justify-content:center;font-size:17px}
+  display:flex;align-items:center;justify-content:center;color:var(--text)}
 
 /* BALANCE CARD */
 .balance{background:linear-gradient(135deg,var(--primary),#7c3aed);color:#fff;border-radius:22px;padding:20px;
@@ -41,13 +43,14 @@ header{position:sticky;top:0;z-index:30;background:var(--bg);padding-top:max(14p
 .balance .amt{font-size:34px;font-weight:800;letter-spacing:-1px;margin:2px 0 14px}
 .balance .row{display:flex;gap:10px}
 .balance .mini{flex:1;background:rgba(255,255,255,.15);border-radius:14px;padding:10px 12px}
-.balance .mini span{display:block;font-size:12px;opacity:.85}
+.balance .mini span{display:flex;align-items:center;gap:5px;font-size:12px;opacity:.9}
 .balance .mini b{font-size:16px}
 
 /* MONTH NAV */
 .monthnav{display:flex;align-items:center;justify-content:center;gap:14px;margin:2px 0 14px}
-.monthnav b{min-width:150px;text-align:center;font-weight:700;font-size:15px}
-.monthnav button{width:34px;height:34px;border-radius:10px;background:var(--card);box-shadow:var(--shadow);font-size:16px}
+.monthnav b{min-width:150px;text-align:center;font-weight:700;font-size:15px;text-transform:capitalize}
+.monthnav button{width:34px;height:34px;border-radius:10px;background:var(--card);box-shadow:var(--shadow);
+  display:flex;align-items:center;justify-content:center;color:var(--text)}
 .monthnav button:disabled{opacity:.35}
 
 /* CARD */
@@ -57,27 +60,28 @@ header{position:sticky;top:0;z-index:30;background:var(--bg);padding-top:max(14p
 
 /* DONUT */
 .donut-wrap{display:flex;gap:16px;align-items:center}
-.legend{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}
+.legend{flex:1;display:flex;flex-direction:column;gap:9px;min-width:0}
 .legend .li{display:flex;align-items:center;gap:8px;font-size:13px}
-.legend .dot{width:10px;height:10px;border-radius:50%;flex:none}
+.legend .li .cic{display:inline-flex;flex:none}
 .legend .li .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .legend .li .vv{font-weight:700}
 
 /* TX LIST */
 .tx{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
 .tx:last-child{border-bottom:none}
-.tx .emo{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:19px;flex:none}
+.tx .emo{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex:none}
 .tx .info{flex:1;min-width:0}
 .tx .info b{font-size:14px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tx .info small{color:var(--muted);font-size:12px}
+.tx .info small{color:var(--muted);font-size:12px;display:inline-flex;align-items:center;gap:4px}
 .tx .val{font-weight:800;font-size:15px;white-space:nowrap}
-.tx .del{opacity:0;color:var(--muted);padding:4px;font-size:14px}
+.tx .del{opacity:0;color:var(--muted);padding:4px;display:inline-flex}
 .tx:hover .del{opacity:1}
 .empty{text-align:center;color:var(--muted);padding:26px 10px;font-size:14px}
 
 /* BUDGET BARS */
 .bgt{margin-bottom:12px}
 .bgt .top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px}
+.bgt .top .lft{display:inline-flex;align-items:center;gap:6px}
 .bgt .bar{height:8px;border-radius:99px;background:var(--border);overflow:hidden}
 .bgt .fill{height:100%;border-radius:99px;transition:width .3s}
 
@@ -104,32 +108,34 @@ header{position:sticky;top:0;z-index:30;background:var(--bg);padding-top:max(14p
 .seg button.on-exp{background:var(--red);color:#fff}
 .seg button.on-inc{background:var(--green);color:#fff}
 .catgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
-.catgrid button{padding:10px 4px;border-radius:12px;border:1.5px solid var(--border);background:var(--bg);
-  display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.catgrid button{padding:11px 4px;border-radius:12px;border:1.5px solid var(--border);background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--text)}
 .catgrid button.sel{border-color:var(--primary);background:var(--primary-soft);color:var(--primary)}
-.catgrid button .e{font-size:20px}
-.btn{width:100%;padding:15px;border-radius:14px;background:var(--primary);color:#fff;font-weight:700;font-size:16px;margin-top:18px}
+.btn{width:100%;padding:15px;border-radius:14px;background:var(--primary);color:#fff;font-weight:700;font-size:16px;margin-top:18px;
+  display:flex;align-items:center;justify-content:center;gap:8px}
 .btn.ghost{background:var(--bg);color:var(--text);border:1.5px solid var(--border)}
 .btn:disabled{opacity:.5}
-.close{position:absolute;top:16px;right:16px;font-size:20px;color:var(--muted)}
+.close{position:absolute;top:16px;right:16px;color:var(--muted);display:inline-flex}
 
 /* PAYWALL */
 .pw{position:relative}
 .pw .hero{text-align:center;padding:6px 0 4px}
-.pw .hero .em{font-size:46px}
+.pw .hero .em{color:var(--primary);display:flex;justify-content:center}
 .pw .price{font-size:32px;font-weight:800;color:var(--primary)}
 .pw .price small{font-size:15px;color:var(--muted);font-weight:600}
 .feat{display:flex;gap:10px;align-items:flex-start;padding:9px 0;font-size:14px}
-.feat .ck{color:var(--green);font-weight:800;flex:none}
+.feat .ck{color:var(--green);flex:none;display:inline-flex;margin-top:1px}
 .lock{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--primary);
   background:var(--primary-soft);padding:3px 8px;border-radius:99px}
-.demo-note{font-size:11px;color:var(--muted);text-align:center;margin-top:10px;line-height:1.5}
+.demo-note{font-size:11px;color:var(--muted);text-align:center;margin-top:10px;line-height:1.6;
+  display:flex;align-items:center;justify-content:center;gap:5px;flex-wrap:wrap}
 .toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:#1f2430;color:#fff;
   padding:12px 18px;border-radius:12px;font-size:14px;font-weight:600;z-index:80;opacity:0;transition:opacity .3s;pointer-events:none}
 .toast.show{opacity:1}
 .row2{display:flex;gap:10px}
 .row2>*{flex:1}
-.addcat{width:100%;padding:12px;border:1.5px dashed var(--border);border-radius:12px;color:var(--primary);font-weight:700;margin-top:8px}
+.addcat{width:100%;padding:12px;border:1.5px dashed var(--border);border-radius:12px;color:var(--primary);font-weight:700;margin-top:8px;
+  display:flex;align-items:center;justify-content:center;gap:6px}
 </style>
 </head>
 <body>
@@ -137,10 +143,10 @@ header{position:sticky;top:0;z-index:30;background:var(--bg);padding-top:max(14p
 <div class="wrap">
   <header>
     <div class="brand">
-      <h1>💸 Budgeto <span class="pill" id="planPill">Gratuit</span></h1>
+      <h1><span data-icon="wallet" data-size="24"></span><span class="nm">Budgeto</span> <span class="pill" id="planPill">Gratuit</span></h1>
       <div style="display:flex;gap:8px">
-        <button class="icon-btn" id="themeBtn" title="Thème">🌙</button>
-        <button class="icon-btn" id="settingsBtn" title="Réglages">⚙️</button>
+        <button class="icon-btn" id="themeBtn" title="Thème"></button>
+        <button class="icon-btn" id="settingsBtn" title="Réglages" data-icon="settings" data-size="19"></button>
       </div>
     </div>
   </header>
@@ -149,15 +155,15 @@ header{position:sticky;top:0;z-index:30;background:var(--bg);padding-top:max(14p
     <div class="lbl">Solde du mois</div>
     <div class="amt" id="balAmt">0,00 €</div>
     <div class="row">
-      <div class="mini"><span>↓ Revenus</span><b id="incAmt">0,00 €</b></div>
-      <div class="mini"><span>↑ Dépenses</span><b id="expAmt">0,00 €</b></div>
+      <div class="mini"><span><span data-icon="arrowDownCircle" data-size="14"></span>Revenus</span><b id="incAmt">0,00 €</b></div>
+      <div class="mini"><span><span data-icon="arrowUpCircle" data-size="14"></span>Dépenses</span><b id="expAmt">0,00 €</b></div>
     </div>
   </div>
 
   <div class="monthnav">
-    <button id="prevM">‹</button>
+    <button id="prevM" data-icon="chevronLeft" data-size="18"></button>
     <b id="monthLbl">—</b>
-    <button id="nextM">›</button>
+    <button id="nextM" data-icon="chevronRight" data-size="18"></button>
   </div>
 
   <div class="card">
@@ -166,7 +172,7 @@ header{position:sticky;top:0;z-index:30;background:var(--bg);padding-top:max(14p
   </div>
 
   <div class="card" id="budgetCard" style="display:none">
-    <h3>Budgets <span class="lock">🔒 Premium</span></h3>
+    <h3>Budgets <span class="lock"><span data-icon="lock" data-size="12"></span> Premium</span></h3>
     <div id="budgetBox"></div>
   </div>
 
@@ -176,18 +182,18 @@ header{position:sticky;top:0;z-index:30;background:var(--bg);padding-top:max(14p
   </div>
 
   <div class="card" id="upsell" style="display:none;text-align:center;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;cursor:pointer">
-    <div style="font-size:30px">⭐</div>
-    <b style="font-size:16px">Passe à Budgeto Premium</b>
+    <div data-icon="star" data-size="30" style="color:#fff;display:flex;justify-content:center"></div>
+    <b style="font-size:16px;display:block;margin-top:4px">Passe à Budgeto Premium</b>
     <p style="margin:6px 0 0;font-size:13px;opacity:.9">Opérations illimitées, budgets, historique complet et bien plus — 3,99&nbsp;€/mois</p>
   </div>
 </div>
 
-<button class="fab" id="addBtn">＋ Ajouter</button>
+<button class="fab" id="addBtn"><span data-icon="plus" data-size="20"></span> Ajouter</button>
 
 <!-- ADD TRANSACTION SHEET -->
 <div class="overlay" id="txOverlay">
   <div class="sheet" style="position:relative">
-    <button class="close" data-close>✕</button>
+    <button class="close" data-close data-icon="x" data-size="20"></button>
     <h2>Nouvelle opération</h2>
     <div class="seg" style="margin-top:14px">
       <button id="segExp" class="on-exp" data-type="expense">Dépense</button>
@@ -215,30 +221,30 @@ header{position:sticky;top:0;z-index:30;background:var(--bg);padding-top:max(14p
 <!-- PAYWALL SHEET -->
 <div class="overlay" id="pwOverlay">
   <div class="sheet pw" style="position:relative">
-    <button class="close" data-close>✕</button>
+    <button class="close" data-close data-icon="x" data-size="20"></button>
     <div class="hero">
-      <div class="em">⭐</div>
+      <div class="em" data-icon="star" data-size="46"></div>
       <h2>Budgeto Premium</h2>
       <div class="price">3,99&nbsp;€<small> / mois</small></div>
       <p class="muted" style="margin:4px 0 0;font-size:13px">Sans engagement, résiliable à tout moment</p>
     </div>
     <div style="margin-top:14px">
-      <div class="feat"><span class="ck">✓</span><div><b>Opérations & comptes illimités</b><br><span class="muted">Fini la limite de 30 opérations/mois</span></div></div>
-      <div class="feat"><span class="ck">✓</span><div><b>Catégories personnalisées</b><br><span class="muted">Crée tes propres catégories, couleurs et icônes</span></div></div>
-      <div class="feat"><span class="ck">✓</span><div><b>Historique complet & tendances</b><br><span class="muted">Navigue sur tous les mois, compare ton évolution</span></div></div>
-      <div class="feat"><span class="ck">✓</span><div><b>Budgets par catégorie + alertes</b><br><span class="muted">Fixe des limites et sois prévenu avant de déraper</span></div></div>
-      <div class="feat"><span class="ck">✓</span><div><b>Opérations récurrentes</b><br><span class="muted">Loyer, abonnements, salaire… ajoutés automatiquement</span></div></div>
-      <div class="feat"><span class="ck">✓</span><div><b>Export CSV</b><br><span class="muted">Récupère toutes tes données quand tu veux</span></div></div>
+      <div class="feat"><span class="ck" data-icon="check" data-size="18"></span><div><b>Opérations & comptes illimités</b><br><span class="muted">Fini la limite de 30 opérations/mois</span></div></div>
+      <div class="feat"><span class="ck" data-icon="check" data-size="18"></span><div><b>Catégories personnalisées</b><br><span class="muted">Crée tes propres catégories, couleurs et icônes</span></div></div>
+      <div class="feat"><span class="ck" data-icon="check" data-size="18"></span><div><b>Historique complet & tendances</b><br><span class="muted">Navigue sur tous les mois, compare ton évolution</span></div></div>
+      <div class="feat"><span class="ck" data-icon="check" data-size="18"></span><div><b>Budgets par catégorie + alertes</b><br><span class="muted">Fixe des limites et sois prévenu avant de déraper</span></div></div>
+      <div class="feat"><span class="ck" data-icon="check" data-size="18"></span><div><b>Opérations récurrentes</b><br><span class="muted">Loyer, abonnements, salaire… ajoutés automatiquement</span></div></div>
+      <div class="feat"><span class="ck" data-icon="check" data-size="18"></span><div><b>Export CSV</b><br><span class="muted">Récupère toutes tes données quand tu veux</span></div></div>
     </div>
     <button class="btn" id="goCheckout">Passer Premium — 3,99 €/mois</button>
-    <div class="demo-note">🔒 Paiement sécurisé. <b>Version démo :</b> aucun prélèvement réel — l'abonnement se débloque localement pour te laisser tout tester. Le branchement Stripe est prévu dans le code (voir <code>startCheckout()</code>).</div>
+    <div class="demo-note"><span data-icon="lock" data-size="12"></span> Paiement sécurisé. <span><b>Version démo :</b> aucun prélèvement réel — le branchement Stripe est prévu dans <code>startCheckout()</code>.</span></div>
   </div>
 </div>
 
 <!-- CHECKOUT SHEET (demo) -->
 <div class="overlay" id="coOverlay">
   <div class="sheet" style="position:relative">
-    <button class="close" data-close>✕</button>
+    <button class="close" data-close data-icon="x" data-size="20"></button>
     <h2>Paiement</h2>
     <p class="muted" style="font-size:13px;margin-top:2px">Budgeto Premium · 3,99 €/mois</p>
     <div class="field"><label>Email</label><input type="email" id="coEmail" placeholder="toi@email.com"></div>
@@ -247,7 +253,7 @@ header{position:sticky;top:0;z-index:30;background:var(--bg);padding-top:max(14p
       <div class="field"><label>Expiration</label><input id="coExp" placeholder="12/28"></div>
       <div class="field"><label>CVC</label><input id="coCvc" inputmode="numeric" placeholder="123"></div>
     </div>
-    <button class="btn" id="payBtn">Payer 3,99 €</button>
+    <button class="btn" id="payBtn"><span data-icon="creditCard" data-size="18"></span> Payer 3,99 €</button>
     <div class="demo-note">Démo — n'entre pas de vraie carte. Le bouton simule un paiement réussi.</div>
   </div>
 </div>
@@ -255,23 +261,23 @@ header{position:sticky;top:0;z-index:30;background:var(--bg);padding-top:max(14p
 <!-- SETTINGS SHEET -->
 <div class="overlay" id="setOverlay">
   <div class="sheet" style="position:relative">
-    <button class="close" data-close>✕</button>
+    <button class="close" data-close data-icon="x" data-size="20"></button>
     <h2>Réglages</h2>
     <div class="card" style="margin-top:14px" id="setPlanBox"></div>
-    <button class="btn ghost" id="exportBtn">⬇️ Exporter en CSV</button>
-    <button class="btn ghost" id="manageCatBtn">🏷️ Gérer les catégories</button>
-    <button class="btn ghost" id="resetBtn" style="color:var(--red)">🗑️ Réinitialiser toutes les données</button>
+    <button class="btn ghost" id="exportBtn"><span data-icon="download" data-size="18"></span> Exporter en CSV</button>
+    <button class="btn ghost" id="manageCatBtn"><span data-icon="tag" data-size="18"></span> Gérer les catégories</button>
+    <button class="btn ghost" id="resetBtn" style="color:var(--red)"><span data-icon="trash" data-size="18"></span> Réinitialiser toutes les données</button>
   </div>
 </div>
 
 <!-- CATEGORIES SHEET -->
 <div class="overlay" id="catOverlay">
   <div class="sheet" style="position:relative">
-    <button class="close" data-close>✕</button>
+    <button class="close" data-close data-icon="x" data-size="20"></button>
     <h2>Mes catégories</h2>
     <p class="muted" style="font-size:13px;margin-top:2px">Ajoute des catégories et fixe un budget mensuel.</p>
     <div id="catManageList" style="margin-top:12px"></div>
-    <button class="addcat" id="addCatBtn">＋ Nouvelle catégorie</button>
+    <button class="addcat" id="addCatBtn"><span data-icon="plus" data-size="16"></span> Nouvelle catégorie</button>
   </div>
 </div>
 
@@ -282,15 +288,58 @@ header{position:sticky;top:0;z-index:30;background:var(--bg);padding-top:max(14p
 const STORE="budgeto_v1";
 const FREE_TX_LIMIT=30;
 
+/* ---------------- ICON LIBRARY (inline SVG, no dependency) ---------------- */
+const ICONS={
+  wallet:"<rect x='3' y='6' width='18' height='14' rx='3'/><path d='M3 10h18'/><circle cx='17' cy='15' r='1.4'/>",
+  utensils:"<path d='M6 3v5a2 2 0 0 0 4 0V3'/><path d='M8 8v13'/><path d='M17 3c-1.6 1-2.5 3-2.5 6.5V13H17'/><path d='M17 3v18'/>",
+  car:"<path d='M5 17h14'/><path d='M5 17v-4l2-5h10l2 5v4'/><path d='M3 13h2M19 13h2'/><circle cx='8' cy='17' r='1.8'/><circle cx='16' cy='17' r='1.8'/>",
+  home:"<path d='M4 10.5 12 4l8 6.5'/><path d='M6 9.5V20h12V9.5'/><path d='M10 20v-5h4v5'/>",
+  music:"<path d='M9 17V5l11-2v10'/><circle cx='6' cy='17' r='3'/><circle cx='17' cy='15' r='3'/>",
+  heart:"<path d='M20.8 5.6a5.5 5.5 0 0 0-7.8 0L12 6.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z'/>",
+  bag:"<path d='M5.5 8h13l.9 11a1 1 0 0 1-1 1.1H5.6a1 1 0 0 1-1-1.1L5.5 8Z'/><path d='M9 8V6.5a3 3 0 0 1 6 0V8'/>",
+  briefcase:"<rect x='3' y='7' width='18' height='13' rx='2'/><path d='M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7'/><path d='M3 12h18'/>",
+  euro:"<path d='M17 6.5a6 6 0 1 0 0 11'/><path d='M5 10h9'/><path d='M5 14h9'/>",
+  moon:"<path d='M21 12.8A8.5 8.5 0 1 1 11.2 3 6.6 6.6 0 0 0 21 12.8Z'/>",
+  sun:"<circle cx='12' cy='12' r='4'/><path d='M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4'/>",
+  settings:"<circle cx='12' cy='12' r='3'/><path d='M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z'/>",
+  plus:"<path d='M12 5v14M5 12h14'/>",
+  chevronLeft:"<path d='M15 6l-6 6 6 6'/>",
+  chevronRight:"<path d='M9 6l6 6-6 6'/>",
+  trash:"<path d='M4 7h16'/><path d='M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2'/><path d='M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13'/><path d='M10 11v6M14 11v6'/>",
+  download:"<path d='M12 3v12'/><path d='M7 10l5 5 5-5'/><path d='M4 21h16'/>",
+  tag:"<path d='M3 12V4a1 1 0 0 1 1-1h8l8 8-9 9-8-8Z'/><circle cx='7.5' cy='7.5' r='1.3'/>",
+  star:"<path d='m12 3 2.7 5.5 6 .9-4.3 4.2 1 6L12 17.8 6.6 19.6l1-6L3.3 9.4l6-.9Z'/>",
+  check:"<path d='M20 6 9 17l-5-5'/>",
+  x:"<path d='M18 6 6 18M6 6l12 12'/>",
+  lock:"<rect x='5' y='11' width='14' height='9' rx='2'/><path d='M8 11V7.5a4 4 0 0 1 8 0V11'/>",
+  repeat:"<path d='M17 2l3 3-3 3'/><path d='M4 11V9a4 4 0 0 1 4-4h12'/><path d='M7 22l-3-3 3-3'/><path d='M20 13v2a4 4 0 0 1-4 4H4'/>",
+  creditCard:"<rect x='2' y='5' width='20' height='14' rx='2'/><path d='M2 10h20'/>",
+  arrowDownCircle:"<circle cx='12' cy='12' r='9'/><path d='M12 7.5v9M8.5 13l3.5 3.5 3.5-3.5'/>",
+  arrowUpCircle:"<circle cx='12' cy='12' r='9'/><path d='M12 16.5v-9M8.5 11l3.5-3.5 3.5 3.5'/>",
+  coffee:"<path d='M18 8h1.5a2.5 2.5 0 0 1 0 5H18'/><path d='M4 8h14v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z'/><path d='M7 2v2.5M11 2v2.5M15 2v2.5'/>",
+  plane:"<path d='M22 2 11 13'/><path d='M22 2 15 22l-4-9-9-4 20-7Z'/>",
+  phone:"<rect x='6' y='2' width='12' height='20' rx='2.5'/><path d='M10.5 18h3'/>",
+  gift:"<rect x='3' y='8' width='18' height='4' rx='1'/><path d='M12 8v13'/><path d='M5 12v7.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V12'/><path d='M12 8S10.7 3.5 8.2 3.5A2.3 2.3 0 0 0 8 8'/><path d='M12 8s1.3-4.5 3.8-4.5A2.3 2.3 0 0 1 16 8'/>",
+  dumbbell:"<path d='M6.5 6.5v11M3.5 9v6M17.5 6.5v11M20.5 9v6M6.5 12h11'/>",
+  book:"<path d='M5 4h12a2 2 0 0 1 2 2v13a1 1 0 0 0-1-1H5Z'/><path d='M5 4v14a1 1 0 0 0 1 1h12'/>",
+  bulb:"<path d='M9.5 18h5'/><path d='M10 21h4'/><path d='M12 3a6 6 0 0 0-3.8 10.6c.6.5.8 1.2.8 2v.4h6v-.4c0-.8.2-1.5.8-2A6 6 0 0 0 12 3Z'/>"
+};
+const ICON=(n,s=20)=>`<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]||ICONS.tag}</svg>`;
+function injectStaticIcons(root){(root||document).querySelectorAll("[data-icon]").forEach(el=>{
+  el.innerHTML=ICON(el.dataset.icon,el.dataset.size?+el.dataset.size:20);});}
+const ICON_CHOICES=["tag","coffee","plane","phone","gift","dumbbell","book","bulb"];
+const COLORS=["#f97316","#3b82f6","#8b5cf6","#ec4899","#10b981","#eab308","#ef4444","#06b6d4"];
+const ICON_BY_ID={food:"utensils",transport:"car",home:"home",fun:"music",health:"heart",shop:"bag",salary:"briefcase","other-inc":"euro"};
+
 const DEFAULT_CATS=[
-  {id:"food",name:"Alimentation",emoji:"🍔",color:"#f97316",type:"expense",budget:null},
-  {id:"transport",name:"Transport",emoji:"🚗",color:"#3b82f6",type:"expense",budget:null},
-  {id:"home",name:"Logement",emoji:"🏠",color:"#8b5cf6",type:"expense",budget:null},
-  {id:"fun",name:"Loisirs",emoji:"🎉",color:"#ec4899",type:"expense",budget:null},
-  {id:"health",name:"Santé",emoji:"💊",color:"#10b981",type:"expense",budget:null},
-  {id:"shop",name:"Shopping",emoji:"🛍️",color:"#eab308",type:"expense",budget:null},
-  {id:"salary",name:"Salaire",emoji:"💼",color:"#16a34a",type:"income",budget:null},
-  {id:"other-inc",name:"Autre revenu",emoji:"💰",color:"#22c55e",type:"income",budget:null}
+  {id:"food",name:"Alimentation",icon:"utensils",color:"#f97316",type:"expense",budget:null},
+  {id:"transport",name:"Transport",icon:"car",color:"#3b82f6",type:"expense",budget:null},
+  {id:"home",name:"Logement",icon:"home",color:"#8b5cf6",type:"expense",budget:null},
+  {id:"fun",name:"Loisirs",icon:"music",color:"#ec4899",type:"expense",budget:null},
+  {id:"health",name:"Santé",icon:"heart",color:"#10b981",type:"expense",budget:null},
+  {id:"shop",name:"Shopping",icon:"bag",color:"#eab308",type:"expense",budget:null},
+  {id:"salary",name:"Salaire",icon:"briefcase",color:"#16a34a",type:"income",budget:null},
+  {id:"other-inc",name:"Autre revenu",icon:"euro",color:"#22c55e",type:"income",budget:null}
 ];
 
 let state=load();
@@ -298,19 +347,22 @@ let viewDate=new Date(); viewDate.setDate(1);
 let form={type:"expense",catId:"food"};
 
 function load(){
-  try{const s=JSON.parse(localStorage.getItem(STORE));
-    if(s&&s.categories)return s;}catch(e){}
-  return {premium:false,theme:"light",categories:JSON.parse(JSON.stringify(DEFAULT_CATS)),transactions:[]};
+  let s=null;
+  try{s=JSON.parse(localStorage.getItem(STORE));}catch(e){}
+  if(!s||!s.categories) s={premium:false,theme:"light",categories:JSON.parse(JSON.stringify(DEFAULT_CATS)),transactions:[]};
+  // migration : anciennes catégories avec emoji -> icône
+  s.categories.forEach(c=>{if(!c.icon)c.icon=ICON_BY_ID[c.id]||"tag";delete c.emoji;});
+  return s;
 }
 function save(){localStorage.setItem(STORE,JSON.stringify(state));}
 function uid(){return Math.random().toString(36).slice(2,10);}
 const eur=n=>(n<0?"-":"")+Math.abs(n).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
 const monthKey=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
-const catOf=id=>state.categories.find(c=>c.id===id)||{name:"?",emoji:"❓",color:"#999",type:"expense"};
+const catOf=id=>state.categories.find(c=>c.id===id)||{name:"?",icon:"tag",color:"#999",type:"expense"};
 function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");
   clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2200);}
 
-/* ---- recurring expansion: materialize monthly recurring tx up to view month ---- */
+/* ---- recurring expansion ---- */
 function ensureRecurring(){
   if(!state.premium)return;
   const seen={};
@@ -342,7 +394,7 @@ function monthTx(){
 /* ---------------- RENDER ---------------- */
 function render(){
   document.documentElement.setAttribute("data-theme",state.theme);
-  document.getElementById("themeBtn").textContent=state.theme==="dark"?"☀️":"🌙";
+  document.getElementById("themeBtn").innerHTML=ICON(state.theme==="dark"?"sun":"moon",19);
   const pill=document.getElementById("planPill");
   pill.textContent=state.premium?"Premium":"Gratuit";
   pill.className="pill"+(state.premium?" pro":"");
@@ -355,7 +407,6 @@ function render(){
   document.getElementById("expAmt").textContent=eur(exp);
   document.getElementById("balAmt").textContent=eur(inc-exp);
 
-  // month label + nav (free = current month only)
   document.getElementById("monthLbl").textContent=
     viewDate.toLocaleDateString("fr-FR",{month:"long",year:"numeric"});
   const now=new Date(); const atCurrent=monthKey(viewDate)===monthKey(now);
@@ -365,7 +416,6 @@ function render(){
   renderDonut(txs);
   renderBudgets(txs);
   renderTxList(txs);
-
   document.getElementById("upsell").style.display=state.premium?"none":"block";
 }
 
@@ -375,15 +425,15 @@ function renderDonut(txs){
   txs.filter(t=>t.type==="expense").forEach(t=>{byCat[t.catId]=(byCat[t.catId]||0)+t.amount;});
   const items=Object.entries(byCat).map(([id,v])=>({c:catOf(id),v})).sort((a,b)=>b.v-a.v);
   const total=items.reduce((s,i)=>s+i.v,0);
-  if(!total){box.innerHTML='<div class="empty">Aucune dépense ce mois-ci.<br>Ajoute ta première opération 👇</div>';return;}
-  const R=52,C=2*Math.PI*R;let off=0;
-  let segs="";
-  items.forEach(i=>{const frac=i.v/total,len=frac*C;
+  if(!total){box.innerHTML='<div class="empty">Aucune dépense ce mois-ci.<br>Ajoute ta première opération.</div>';return;}
+  const R=52,C=2*Math.PI*R;let off=0,segs="";
+  items.forEach(i=>{const len=i.v/total*C;
     segs+=`<circle cx="60" cy="60" r="${R}" fill="none" stroke="${i.c.color}" stroke-width="16"
       stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 60 60)"/>`;
     off+=len;});
-  const legend=items.slice(0,6).map(i=>`<div class="li"><span class="dot" style="background:${i.c.color}"></span>
-    <span class="nm">${i.c.emoji} ${i.c.name}</span><span class="vv">${Math.round(i.v/total*100)}%</span></div>`).join("");
+  const legend=items.slice(0,6).map(i=>`<div class="li">
+    <span class="cic" style="color:${i.c.color}">${ICON(i.c.icon,16)}</span>
+    <span class="nm">${i.c.name}</span><span class="vv">${Math.round(i.v/total*100)}%</span></div>`).join("");
   box.innerHTML=`<div class="donut-wrap">
     <svg width="120" height="120" viewBox="0 0 120 120" style="flex:none">${segs}
       <text x="60" y="56" text-anchor="middle" font-size="11" fill="var(--muted)">Total</text>
@@ -396,33 +446,27 @@ function renderBudgets(txs){
   const withBudget=state.categories.filter(c=>c.type==="expense"&&c.budget>0);
   if(!state.premium||!withBudget.length){card.style.display="none";return;}
   card.style.display="block";
-  const box=document.getElementById("budgetBox");
-  box.innerHTML=withBudget.map(c=>{
+  document.getElementById("budgetBox").innerHTML=withBudget.map(c=>{
     const spent=txs.filter(t=>t.catId===c.id&&t.type==="expense").reduce((s,t)=>s+t.amount,0);
     const pct=Math.min(100,spent/c.budget*100);
     const col=pct>=100?"var(--red)":pct>=80?"#f59e0b":"var(--green)";
-    return `<div class="bgt"><div class="top"><span>${c.emoji} ${c.name}</span>
+    return `<div class="bgt"><div class="top"><span class="lft">${ICON(c.icon,15)} ${c.name}</span>
       <span style="color:${col};font-weight:700">${eur(spent)} / ${eur(c.budget)}</span></div>
-      <div class="bar"><div class="fill" style="width:${pct}%;background:${col}"></div></div></div>`;
-  }).join("");
+      <div class="bar"><div class="fill" style="width:${pct}%;background:${col}"></div></div></div>`;}).join("");
 }
 
 function renderTxList(txs){
   const list=document.getElementById("txList");
-  const cnt=document.getElementById("txCount");
-  if(!state.premium){
-    const monthCount=txs.length;
-    cnt.textContent=`${monthCount}/${FREE_TX_LIMIT}`;
-  }else cnt.textContent="";
+  document.getElementById("txCount").textContent=state.premium?"":`${txs.length}/${FREE_TX_LIMIT}`;
   if(!txs.length){list.innerHTML='<div class="empty">Rien pour le moment.</div>';return;}
   list.innerHTML=txs.map(t=>{const c=catOf(t.catId);const sign=t.type==="income"?"+":"−";
     const col=t.type==="income"?"var(--green)":"var(--text)";
     const d=new Date(t.date).toLocaleDateString("fr-FR",{day:"2-digit",month:"short"});
-    return `<div class="tx"><div class="emo" style="background:${c.color}22">${c.emoji}</div>
+    return `<div class="tx"><div class="emo" style="background:${c.color}22;color:${c.color}">${ICON(c.icon,20)}</div>
       <div class="info"><b>${t.note?escapeHtml(t.note):c.name}</b>
-        <small>${c.name} · ${d}${t.recurring?" · 🔁":""}</small></div>
+        <small>${c.name} · ${d}${t.recurring?" · "+ICON("repeat",12):""}</small></div>
       <div class="val" style="color:${col}">${sign}${eur(t.amount).replace("-","")}</div>
-      <button class="del" data-del="${t.id}">🗑️</button></div>`;}).join("");
+      <button class="del" data-del="${t.id}">${ICON("trash",16)}</button></div>`;}).join("");
 }
 function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 
@@ -434,11 +478,8 @@ document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{
 
 /* ADD TX */
 function openAddTx(){
-  // Free limit check
   if(!state.premium && monthTx().length>=FREE_TX_LIMIT){
-    toast("Limite gratuite atteinte ce mois-ci");
-    openPaywall();return;
-  }
+    toast("Limite gratuite atteinte ce mois-ci");openPaywall();return;}
   form={type:"expense",catId:DEFAULT_CATS[0].id};
   document.getElementById("fAmount").value="";
   document.getElementById("fNote").value="";
@@ -454,9 +495,9 @@ function setType(type){
   document.getElementById("segInc").className=type==="income"?"on-inc":"";
   document.getElementById("recurField").style.display=state.premium?"block":"none";
   const cats=state.categories.filter(c=>c.type===type);
-  if(!cats.some(c=>c.id===form.catId))form.catId=cats[0]?.id;
+  if(!cats.some(c=>c.id===form.catId))form.catId=cats[0]&&cats[0].id;
   document.getElementById("catGrid").innerHTML=cats.map(c=>
-    `<button data-cat="${c.id}" class="${c.id===form.catId?"sel":""}"><span class="e">${c.emoji}</span>${c.name}</button>`).join("");
+    `<button data-cat="${c.id}" class="${c.id===form.catId?"sel":""}">${ICON(c.icon,22)}<span>${c.name}</span></button>`).join("");
 }
 document.getElementById("catGrid").addEventListener("click",e=>{
   const b=e.target.closest("[data-cat]");if(!b)return;form.catId=b.dataset.cat;setType(form.type);});
@@ -471,13 +512,11 @@ document.getElementById("saveTx").addEventListener("click",()=>{
     date:document.getElementById("fDate").value||new Date().toISOString().slice(0,10),
     note:document.getElementById("fNote").value.trim(),recurring:recur||null};
   if(recur)t.recurId=t.id;
-  state.transactions.push(t);save();closeSheet("txOverlay");render();toast("Opération ajoutée ✅");
+  state.transactions.push(t);save();closeSheet("txOverlay");render();toast("Opération ajoutée");
 });
-
 document.getElementById("txList").addEventListener("click",e=>{
   const b=e.target.closest("[data-del]");if(!b)return;
-  state.transactions=state.transactions.filter(t=>t.id!==b.dataset.del);save();render();
-});
+  state.transactions=state.transactions.filter(t=>t.id!==b.dataset.del);save();render();});
 
 /* MONTH NAV */
 document.getElementById("prevM").addEventListener("click",()=>{
@@ -487,7 +526,7 @@ document.getElementById("nextM").addEventListener("click",()=>{viewDate.setMonth
 
 /* THEME */
 document.getElementById("themeBtn").addEventListener("click",()=>{
-  if(!state.premium){toast("Le thème sombre est réservé au Premium 🌙");openPaywall();return;}
+  if(!state.premium){toast("Le thème sombre est réservé au Premium");openPaywall();return;}
   state.theme=state.theme==="dark"?"light":"dark";save();render();});
 
 /* ---------------- PAYWALL / CHECKOUT ---------------- */
@@ -505,12 +544,12 @@ document.getElementById("goCheckout").addEventListener("click",()=>{closeSheet("
 function startCheckout(){openSheet("coOverlay");}
 document.getElementById("payBtn").addEventListener("click",()=>{
   const btn=document.getElementById("payBtn");
-  btn.textContent="Paiement…";btn.disabled=true;
+  btn.innerHTML="Paiement…";btn.disabled=true;
   setTimeout(()=>{
     state.premium=true;save();
-    btn.textContent="Payer 3,99 €";btn.disabled=false;
+    btn.innerHTML=ICON("creditCard",18)+" Payer 3,99 €";btn.disabled=false;
     closeSheet("coOverlay");render();renderSettings();
-    toast("Bienvenue dans Premium ⭐ Tout est débloqué !");
+    toast("Bienvenue dans Premium — tout est débloqué !");
   },1100);
 });
 
@@ -519,8 +558,8 @@ document.getElementById("settingsBtn").addEventListener("click",()=>{renderSetti
 function renderSettings(){
   const box=document.getElementById("setPlanBox");
   if(state.premium){
-    box.innerHTML=`<b>⭐ Budgeto Premium</b><p class="muted" style="font-size:13px;margin:6px 0 0">
-      Abonnement actif · 3,99 €/mois.</p>
+    box.innerHTML=`<b style="display:inline-flex;align-items:center;gap:6px">${ICON("star",16)} Budgeto Premium</b>
+      <p class="muted" style="font-size:13px;margin:6px 0 0">Abonnement actif · 3,99 €/mois.</p>
       <button class="btn ghost" id="cancelSub" style="margin-top:10px;color:var(--red)">Résilier l'abonnement</button>`;
     box.querySelector("#cancelSub").addEventListener("click",()=>{
       state.premium=false;state.theme="light";save();render();renderSettings();toast("Abonnement résilié");});
@@ -540,45 +579,41 @@ document.getElementById("exportBtn").addEventListener("click",()=>{
   const csv=rows.map(r=>r.map(c=>`"${c}"`).join(";")).join("\n");
   const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);
-  a.download="budgeto-export.csv";a.click();toast("Export CSV téléchargé");
-});
+  a.download="budgeto-export.csv";a.click();toast("Export CSV téléchargé");});
 document.getElementById("resetBtn").addEventListener("click",()=>{
   if(confirm("Supprimer toutes tes données ? Cette action est irréversible.")){
     localStorage.removeItem(STORE);state=load();viewDate=new Date();viewDate.setDate(1);
-    closeSheet("setOverlay");render();toast("Données réinitialisées");}
-});
+    closeSheet("setOverlay");render();toast("Données réinitialisées");}});
 
 /* ---------------- CATEGORIES MANAGEMENT ---------------- */
 document.getElementById("manageCatBtn").addEventListener("click",()=>{closeSheet("setOverlay");renderCatManage();openSheet("catOverlay");});
-const EMOJIS=["🍔","🚗","🏠","🎉","💊","🛍️","💼","💰","☕","✈️","📱","🎓","🐶","💡","🎁","🏋️"];
-const COLORS=["#f97316","#3b82f6","#8b5cf6","#ec4899","#10b981","#eab308","#ef4444","#06b6d4"];
 function renderCatManage(){
   const box=document.getElementById("catManageList");
   box.innerHTML=state.categories.map(c=>`
-    <div class="tx"><div class="emo" style="background:${c.color}22">${c.emoji}</div>
+    <div class="tx"><div class="emo" style="background:${c.color}22;color:${c.color}">${ICON(c.icon,20)}</div>
       <div class="info"><b>${c.name}</b><small>${c.type==="income"?"Revenu":"Dépense"}${c.type==="expense"?" · Budget :":""}</small></div>
       ${c.type==="expense"?`<input type="number" data-bgt="${c.id}" value="${c.budget||""}" placeholder="—"
         style="width:74px;padding:8px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);color:var(--text)"
         ${state.premium?"":"disabled"}>`:""}
-      <button class="del" data-delcat="${c.id}" style="opacity:1">🗑️</button></div>`).join("");
+      <button class="del" data-delcat="${c.id}" style="opacity:1">${ICON("trash",16)}</button></div>`).join("");
   box.querySelectorAll("[data-bgt]").forEach(inp=>inp.addEventListener("change",e=>{
     const c=state.categories.find(x=>x.id===e.target.dataset.bgt);
     c.budget=parseFloat(e.target.value)||null;save();toast("Budget mis à jour");}));
   box.querySelectorAll("[data-delcat]").forEach(b=>b.addEventListener("click",e=>{
-    const id=e.target.dataset.delcat;
+    const id=e.currentTarget.dataset.delcat;
     if(state.transactions.some(t=>t.catId===id)){toast("Catégorie utilisée — impossible de supprimer");return;}
     state.categories=state.categories.filter(c=>c.id!==id);save();renderCatManage();render();}));
 }
 document.getElementById("addCatBtn").addEventListener("click",()=>{
-  if(!state.premium){toast("Catégories personnalisées : Premium 🔒");closeSheet("catOverlay");openPaywall();return;}
+  if(!state.premium){toast("Catégories personnalisées : Premium");closeSheet("catOverlay");openPaywall();return;}
   const name=prompt("Nom de la catégorie ?");if(!name)return;
   const type=confirm("OK = Dépense · Annuler = Revenu")?"expense":"income";
-  const c={id:uid(),name:name.trim(),emoji:EMOJIS[Math.floor(state.categories.length%EMOJIS.length)],
+  const c={id:uid(),name:name.trim(),icon:ICON_CHOICES[state.categories.length%ICON_CHOICES.length],
     color:COLORS[state.categories.length%COLORS.length],type,budget:null};
-  state.categories.push(c);save();renderCatManage();render();toast("Catégorie ajoutée");
-});
+  state.categories.push(c);save();renderCatManage();render();toast("Catégorie ajoutée");});
 
 /* ---------------- INIT ---------------- */
+injectStaticIcons();
 render();
 </script>
 </body>
