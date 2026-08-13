@@ -427,6 +427,7 @@ check("meme PurchaseId rejoue : accorde sans double credit",
 check("PurchaseId historise en cle string", aliceData.Purchases["ACHAT-1"] == true)
 
 local manaBefore = aliceData.Mana
+local totalManaBefore = aliceData.TotalMana
 local petCountBefore = Util.dictCount(aliceData.Pets)
 decision = processReceipt({ PlayerId = 111, ProductId = 91002, PurchaseId = "ACHAT-2" })
 check("pack de depart accorde",
@@ -436,6 +437,8 @@ check("pack : +5000 mana, +200 gemmes, +1 familier exclusif",
 	and aliceData.Gems == gemsBeforeBuy + 300
 	and Util.dictCount(aliceData.Pets) == petCountBefore + 1
 	and aliceData.StarterPackOwned == true)
+check("mana ACHETEE exclue du classement (TotalMana inchangee)",
+	aliceData.TotalMana == totalManaBefore, aliceData.TotalMana - totalManaBefore)
 
 decision = processReceipt({ PlayerId = 111, ProductId = 91002, PurchaseId = "ACHAT-3" })
 check("pack duplique : mana/gemmes credites mais PAS de 2e familier",

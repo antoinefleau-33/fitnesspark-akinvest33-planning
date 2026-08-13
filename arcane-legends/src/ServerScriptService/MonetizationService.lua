@@ -13,6 +13,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 
 local Config = require(ReplicatedStorage:WaitForChild("Config"))
+local Util = require(ReplicatedStorage:WaitForChild("Util"))
 local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
 
 local MonetizationService = {}
@@ -41,25 +42,49 @@ function MonetizationService.OwnsPass(player, passKey)
 	return cache ~= nil and cache[passKey] == true
 end
 
--- Interroge Roblox pour un pass donne et met le cache a jour
+-- Interroge Roblox pour un pass donne et met le cache a jour.
+-- Retry : un hoquet de l'API Marketplace au login priverait sinon le joueur
+-- de tous ses gamepasses (x2 mana, VIP...) pour TOUTE la session.
+local QUERY_ATTEMPTS = 3
+
 local function queryPass(player, passKey)
 	local def = Config.GamePasses[passKey]
 	if not def or def.Id == 0 then
 		return false -- TODO_UTILISATEUR : ID non configure
 	end
-	local ok, owns = pcall(function()
-		return MarketplaceService:UserOwnsGamePassAsync(player.UserId, def.Id)
-	end)
-	if ok and passCache[player] then
-		passCache[player][passKey] = owns == true
+	for attempt = 1, QUERY_ATTEMPTS do
+		local ok, owns = pcall(function()
+			return MarketplaceService:UserOwnsGamePassAsync(player.UserId, def.Id)
+		end)
+		if ok then
+			if passCache[player] then
+				passCache[player][passKey] = owns == true
+			end
+			return owns == true
+		end
+		if attempt < QUERY_ATTEMPTS then
+			task.wait(2 * attempt)
+		end
 	end
-	return ok and owns == true
+	return false
+end
+
+-- Attend (borne) que le profil du joueur soit charge : au login, les requetes
+-- gamepass peuvent aboutir AVANT la fin du chargement DataStore du profil.
+local function waitForProfile(player, timeoutSeconds)
+	local deadline = os.clock() + (timeoutSeconds or 30)
+	local data = services.DataManager.GetProfile(player)
+	while not data and player.Parent ~= nil and os.clock() < deadline do
+		task.wait(0.5)
+		data = services.DataManager.GetProfile(player)
+	end
+	return data
 end
 
 -- Effets immediats a l'obtention d'un pass (achat en jeu ou detection au login)
 local function applyPassEffects(player, passKey)
 	if passKey == "VoidLord" then
-		local data = services.DataManager.GetProfile(player)
+		local data = waitForProfile(player)
 		if data and not data.VoidLordGranted then
 			data.VoidLordGranted = true
 			services.PetService.GrantPet(player, "seigneurvide", true)
@@ -102,15 +127,17 @@ local function grantProduct(player, productKey)
 	end
 
 	if productKey == "StarterPack" then
+		-- countTotal = false : la mana ACHETEE ne compte pas dans TotalMana
+		-- (le classement global recompense la mana gagnee en jouant)
 		if data.StarterPackOwned then
 			-- Achat duplique d'un pack UNIQUE (ne devrait pas arriver : l'UI le
 			-- masque une fois possede). On credite mana + gemmes pour ne pas
 			-- leser l'acheteur, mais pas de second familier exclusif.
-			services.Economy.AddMana(player, def.Mana)
+			services.Economy.AddMana(player, def.Mana, false)
 			services.Economy.AddGems(player, def.Gems, false)
 		else
 			data.StarterPackOwned = true
-			services.Economy.AddMana(player, def.Mana)
+			services.Economy.AddMana(player, def.Mana, false)
 			services.Economy.AddGems(player, def.Gems, false)
 			services.PetService.GrantPet(player, def.Pet, true)
 		end
@@ -179,10 +206,7 @@ end
 function MonetizationService.Init(registry)
 	services = registry
 
-	Players.PlayerAdded:Connect(preloadPasses)
-	for _, player in ipairs(Players:GetPlayers()) do
-		preloadPasses(player)
-	end
+	Util.forEachPlayer(Players, preloadPasses)
 	Players.PlayerRemoving:Connect(function(player)
 		passCache[player] = nil
 	end)

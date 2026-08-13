@@ -114,12 +114,23 @@ end
 -- Auto-canalisation (gamepass Auto-Canalisation)
 ----------------------------------------------------------------
 
-local function findNearestCrystal(rootPart)
+-- Le joueur peut-il GAGNER sur cette zone ? (silencieux : pour l'auto-loop)
+local function canGainFromZone(player, data, zoneId)
+	if zoneId == 0 then
+		return services.Monetization.OwnsPass(player, "VIPZone")
+	end
+	return Config.Zones[zoneId] ~= nil and data.Zones[tostring(zoneId)] == true
+end
+
+-- Cristal canalisable le plus proche. Ignore les cristaux des zones non
+-- possedees : sinon l'auto-canalisation (gamepass paye) se bloquerait sur le
+-- cristal verrouille le plus proche et spammerait « Zone verrouillée ».
+local function findNearestCrystal(player, data, rootPart)
 	local best = nil
 	local bestDistance = Config.Training.ChannelRange
 	for i = 1, #crystals do
 		local crystal = crystals[i]
-		if crystal.Parent then
+		if crystal.Parent and canGainFromZone(player, data, crystal:GetAttribute("ZoneId")) then
 			local distance = (rootPart.Position - crystal.Position).Magnitude
 			if distance <= bestDistance then
 				bestDistance = distance
@@ -138,7 +149,7 @@ local function autoLoop()
 			if data and data.AutoTrain and services.Monetization.OwnsPass(player, "AutoTrain") then
 				local rootPart = Util.getRootPart(player)
 				if rootPart then
-					local crystal = findNearestCrystal(rootPart)
+					local crystal = findNearestCrystal(player, data, rootPart)
 					if crystal then
 						TrainingService.Channel(player, crystal)
 					end

@@ -36,9 +36,9 @@
 - Contexte : « sacrifier TOUTE sa mana » — le prompt ne mentionne que la mana.
 - Choix : lecture littérale, seule la mana est remise à 0 ; zones, familiers et gemmes conservés. Plus doux, et conforme au texte.
 
-## D9 — Mana achetée (Pack de Départ) comptée dans la mana totale
-- Contexte : le classement est sur « la mana totale gagnée » ; jeu assumé pay-to-win (accélération).
-- Choix : les 5 000 mana du pack comptent dans TotalMana. Cohérent avec l'esprit P2W du brief.
+## D9 (RÉVISÉE lors de la passe de correction) — Mana achetée EXCLUE de la mana totale
+- Choix initial : les 5 000 mana du Pack de Départ comptaient dans TotalMana.
+- Révision : la revue de bugs a requalifié ce choix — le brief dit « accélération + statut, pas de domination directe » et le classement mesure « la mana totale gagnée ». La mana ACHETÉE est désormais créditée avec countTotal=false : elle est jouable mais n'entre pas au classement global. Test de non-régression ajouté.
 
 ## D10 — Pack de Départ acheté deux fois (cas limite ProcessReceipt)
 - Contexte : produit « UNIQUE », mais un achat dupliqué reste techniquement possible si l'utilisateur force l'achat hors UI.
@@ -68,3 +68,7 @@
 ## D16 — Tolérance de distance de canalisation
 - Contexte : la validation serveur stricte à 14 studs rejetterait des clics légitimes (latence, taille du personnage).
 - Choix : portée d'interaction 14 studs (ClickDetector/Prompt) mais validation serveur à 14+6 studs. Le serveur reste la seule autorité, la marge absorbe la latence.
+
+## D17 — Passe de correction de bugs (demande utilisateur du matin)
+- 7 findings (revue haute intensité), 6 corrigés : (1) SaveAll itérait `sessions` pendant des yields DataStore (comportement indéfini si un joueur arrive → mort silencieuse de l'autosave) → copie des clés d'abord ; (2) course au login : l'octroi du familier Seigneur du Vide pouvait tomber avant la fin du chargement du profil → attente bornée (30 s) du profil ; (3) un seul échec de UserOwnsGamePassAsync privait le joueur de ses gamepasses payés toute la session → 3 tentatives avec backoff ; (4) l'auto-canalisation se verrouillait sur un cristal de zone non possédée (zéro gain + spam de notif) → filtre de zone dans la recherche du cristal ; (5) D9 révisée (mana achetée hors classement) ; (6) motif « PlayerAdded + boucle joueurs présents » dupliqué dans 4 services → Util.forEachPlayer.
+- Non corrigé volontairement : snapshot complet envoyé à chaque gain (optimisation d'architecture client/serveur, disproportionnée ici ; documentée comme amélioration possible).

@@ -222,21 +222,15 @@ function PetService.Init(registry)
 	Remotes.get().SetPetEquipped.OnServerInvoke = setPetEquipped
 
 	-- Reattache les visuels a chaque respawn
-	Players.PlayerAdded:Connect(function(player)
+	Util.forEachPlayer(Players, function(player)
 		player.CharacterAdded:Connect(function()
 			task.wait(0.3) -- laisse le personnage s'assembler
-			PetService.RefreshPetVisuals(player)
-		end)
-	end)
-	for _, player in ipairs(Players:GetPlayers()) do
-		player.CharacterAdded:Connect(function()
-			task.wait(0.3)
 			PetService.RefreshPetVisuals(player)
 		end)
 		if player.Character then
 			PetService.RefreshPetVisuals(player)
 		end
-	end
+	end)
 end
 
 return PetService

@@ -414,6 +414,15 @@ function Util.getAliveHumanoid(player)
 	return nil
 end
 
+-- Applique callback(player) a chaque joueur present ET a chaque nouvel
+-- arrivant (motif commun a tous les services : hooks de personnage, caches...)
+function Util.forEachPlayer(playersService, callback)
+	playersService.PlayerAdded:Connect(callback)
+	for _, player in ipairs(playersService:GetPlayers()) do
+		callback(player)
+	end
+end
+
 -- Teste si une position est dans un rectangle horizontal centre en (cx, cz)
 function Util.isInsideRect(position, cx, cz, sizeX, sizeZ)
 	local dx = math.abs(position.X - cx)
@@ -626,8 +635,7 @@ function CombatService.Init(registry)
 
 	Remotes.get().CastSpell.OnServerEvent:Connect(onCastSpell)
 
-	Players.PlayerAdded:Connect(hookCharacter)
-	for _, player in ipairs(Players:GetPlayers()) do
+	Util.forEachPlayer(Players, function(player)
 		hookCharacter(player)
 		if player.Character then
 			local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
@@ -637,7 +645,7 @@ function CombatService.Init(registry)
 				end)
 			end
 		end
-	end
+	end)
 
 	Players.PlayerRemoving:Connect(function(player)
 		lastCast[player] = nil
@@ -865,8 +873,15 @@ end
 
 -- Sauvegarde tout le monde (autosave / BindToClose)
 function DataManager.SaveAll()
+	-- Copie des cles d'abord : SaveProfile yield (DataStore), et ajouter une
+	-- entree a `sessions` (joueur qui arrive) pendant un pairs() en cours est
+	-- un comportement indefini en Lua ("invalid key to 'next'").
+	local players = {}
 	for player, _ in pairs(sessions) do
-		DataManager.SaveProfile(player)
+		table.insert(players, player)
+	end
+	for i = 1, #players do
+		DataManager.SaveProfile(players[i])
 	end
 end
 
@@ -1964,6 +1979,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 
 local Config = require(ReplicatedStorage:WaitForChild("Config"))
+local Util = require(ReplicatedStorage:WaitForChild("Util"))
 local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
 
 local MonetizationService = {}
@@ -1992,25 +2008,49 @@ function MonetizationService.OwnsPass(player, passKey)
 	return cache ~= nil and cache[passKey] == true
 end
 
--- Interroge Roblox pour un pass donne et met le cache a jour
+-- Interroge Roblox pour un pass donne et met le cache a jour.
+-- Retry : un hoquet de l'API Marketplace au login priverait sinon le joueur
+-- de tous ses gamepasses (x2 mana, VIP...) pour TOUTE la session.
+local QUERY_ATTEMPTS = 3
+
 local function queryPass(player, passKey)
 	local def = Config.GamePasses[passKey]
 	if not def or def.Id == 0 then
 		return false -- TODO_UTILISATEUR : ID non configure
 	end
-	local ok, owns = pcall(function()
-		return MarketplaceService:UserOwnsGamePassAsync(player.UserId, def.Id)
-	end)
-	if ok and passCache[player] then
-		passCache[player][passKey] = owns == true
+	for attempt = 1, QUERY_ATTEMPTS do
+		local ok, owns = pcall(function()
+			return MarketplaceService:UserOwnsGamePassAsync(player.UserId, def.Id)
+		end)
+		if ok then
+			if passCache[player] then
+				passCache[player][passKey] = owns == true
+			end
+			return owns == true
+		end
+		if attempt &lt; QUERY_ATTEMPTS then
+			task.wait(2 * attempt)
+		end
 	end
-	return ok and owns == true
+	return false
+end
+
+-- Attend (borne) que le profil du joueur soit charge : au login, les requetes
+-- gamepass peuvent aboutir AVANT la fin du chargement DataStore du profil.
+local function waitForProfile(player, timeoutSeconds)
+	local deadline = os.clock() + (timeoutSeconds or 30)
+	local data = services.DataManager.GetProfile(player)
+	while not data and player.Parent ~= nil and os.clock() &lt; deadline do
+		task.wait(0.5)
+		data = services.DataManager.GetProfile(player)
+	end
+	return data
 end
 
 -- Effets immediats a l'obtention d'un pass (achat en jeu ou detection au login)
 local function applyPassEffects(player, passKey)
 	if passKey == "VoidLord" then
-		local data = services.DataManager.GetProfile(player)
+		local data = waitForProfile(player)
 		if data and not data.VoidLordGranted then
 			data.VoidLordGranted = true
 			services.PetService.GrantPet(player, "seigneurvide", true)
@@ -2053,15 +2093,17 @@ local function grantProduct(player, productKey)
 	end
 
 	if productKey == "StarterPack" then
+		-- countTotal = false : la mana ACHETEE ne compte pas dans TotalMana
+		-- (le classement global recompense la mana gagnee en jouant)
 		if data.StarterPackOwned then
 			-- Achat duplique d'un pack UNIQUE (ne devrait pas arriver : l'UI le
 			-- masque une fois possede). On credite mana + gemmes pour ne pas
 			-- leser l'acheteur, mais pas de second familier exclusif.
-			services.Economy.AddMana(player, def.Mana)
+			services.Economy.AddMana(player, def.Mana, false)
 			services.Economy.AddGems(player, def.Gems, false)
 		else
 			data.StarterPackOwned = true
-			services.Economy.AddMana(player, def.Mana)
+			services.Economy.AddMana(player, def.Mana, false)
 			services.Economy.AddGems(player, def.Gems, false)
 			services.PetService.GrantPet(player, def.Pet, true)
 		end
@@ -2130,10 +2172,7 @@ end
 function MonetizationService.Init(registry)
 	services = registry
 
-	Players.PlayerAdded:Connect(preloadPasses)
-	for _, player in ipairs(Players:GetPlayers()) do
-		preloadPasses(player)
-	end
+	Util.forEachPlayer(Players, preloadPasses)
 	Players.PlayerRemoving:Connect(function(player)
 		passCache[player] = nil
 	end)
@@ -2386,21 +2425,15 @@ function PetService.Init(registry)
 	Remotes.get().SetPetEquipped.OnServerInvoke = setPetEquipped
 
 	-- Reattache les visuels a chaque respawn
-	Players.PlayerAdded:Connect(function(player)
+	Util.forEachPlayer(Players, function(player)
 		player.CharacterAdded:Connect(function()
 			task.wait(0.3) -- laisse le personnage s'assembler
-			PetService.RefreshPetVisuals(player)
-		end)
-	end)
-	for _, player in ipairs(Players:GetPlayers()) do
-		player.CharacterAdded:Connect(function()
-			task.wait(0.3)
 			PetService.RefreshPetVisuals(player)
 		end)
 		if player.Character then
 			PetService.RefreshPetVisuals(player)
 		end
-	end
+	end)
 end
 
 return PetService
@@ -2527,13 +2560,7 @@ function RebirthService.Init(registry)
 
 	Remotes.get().DoRebirth.OnServerInvoke = doRebirth
 
-	Players.PlayerAdded:Connect(function(player)
-		player.CharacterAdded:Connect(function()
-			task.wait(0.3)
-			RebirthService.ApplyAura(player)
-		end)
-	end)
-	for _, player in ipairs(Players:GetPlayers()) do
+	Util.forEachPlayer(Players, function(player)
 		player.CharacterAdded:Connect(function()
 			task.wait(0.3)
 			RebirthService.ApplyAura(player)
@@ -2541,7 +2568,7 @@ function RebirthService.Init(registry)
 		if player.Character then
 			RebirthService.ApplyAura(player)
 		end
-	end
+	end)
 end
 
 return RebirthService
@@ -2667,12 +2694,23 @@ end
 -- Auto-canalisation (gamepass Auto-Canalisation)
 ----------------------------------------------------------------
 
-local function findNearestCrystal(rootPart)
+-- Le joueur peut-il GAGNER sur cette zone ? (silencieux : pour l'auto-loop)
+local function canGainFromZone(player, data, zoneId)
+	if zoneId == 0 then
+		return services.Monetization.OwnsPass(player, "VIPZone")
+	end
+	return Config.Zones[zoneId] ~= nil and data.Zones[tostring(zoneId)] == true
+end
+
+-- Cristal canalisable le plus proche. Ignore les cristaux des zones non
+-- possedees : sinon l'auto-canalisation (gamepass paye) se bloquerait sur le
+-- cristal verrouille le plus proche et spammerait « Zone verrouillée ».
+local function findNearestCrystal(player, data, rootPart)
 	local best = nil
 	local bestDistance = Config.Training.ChannelRange
 	for i = 1, #crystals do
 		local crystal = crystals[i]
-		if crystal.Parent then
+		if crystal.Parent and canGainFromZone(player, data, crystal:GetAttribute("ZoneId")) then
 			local distance = (rootPart.Position - crystal.Position).Magnitude
 			if distance &lt;= bestDistance then
 				bestDistance = distance
@@ -2691,7 +2729,7 @@ local function autoLoop()
 			if data and data.AutoTrain and services.Monetization.OwnsPass(player, "AutoTrain") then
 				local rootPart = Util.getRootPart(player)
 				if rootPart then
-					local crystal = findNearestCrystal(rootPart)
+					local crystal = findNearestCrystal(player, data, rootPart)
 					if crystal then
 						TrainingService.Channel(player, crystal)
 					end

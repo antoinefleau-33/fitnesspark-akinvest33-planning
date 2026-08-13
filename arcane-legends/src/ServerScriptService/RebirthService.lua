@@ -115,13 +115,7 @@ function RebirthService.Init(registry)
 
 	Remotes.get().DoRebirth.OnServerInvoke = doRebirth
 
-	Players.PlayerAdded:Connect(function(player)
-		player.CharacterAdded:Connect(function()
-			task.wait(0.3)
-			RebirthService.ApplyAura(player)
-		end)
-	end)
-	for _, player in ipairs(Players:GetPlayers()) do
+	Util.forEachPlayer(Players, function(player)
 		player.CharacterAdded:Connect(function()
 			task.wait(0.3)
 			RebirthService.ApplyAura(player)
@@ -129,7 +123,7 @@ function RebirthService.Init(registry)
 		if player.Character then
 			RebirthService.ApplyAura(player)
 		end
-	end
+	end)
 end
 
 return RebirthService

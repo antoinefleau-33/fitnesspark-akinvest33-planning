@@ -211,8 +211,15 @@ end
 
 -- Sauvegarde tout le monde (autosave / BindToClose)
 function DataManager.SaveAll()
+	-- Copie des cles d'abord : SaveProfile yield (DataStore), et ajouter une
+	-- entree a `sessions` (joueur qui arrive) pendant un pairs() en cours est
+	-- un comportement indefini en Lua ("invalid key to 'next'").
+	local players = {}
 	for player, _ in pairs(sessions) do
-		DataManager.SaveProfile(player)
+		table.insert(players, player)
+	end
+	for i = 1, #players do
+		DataManager.SaveProfile(players[i])
 	end
 end
 

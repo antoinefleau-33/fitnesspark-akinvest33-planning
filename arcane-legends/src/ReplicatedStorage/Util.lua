@@ -129,6 +129,15 @@ function Util.getAliveHumanoid(player)
 	return nil
 end
 
+-- Applique callback(player) a chaque joueur present ET a chaque nouvel
+-- arrivant (motif commun a tous les services : hooks de personnage, caches...)
+function Util.forEachPlayer(playersService, callback)
+	playersService.PlayerAdded:Connect(callback)
+	for _, player in ipairs(playersService:GetPlayers()) do
+		callback(player)
+	end
+end
+
 -- Teste si une position est dans un rectangle horizontal centre en (cx, cz)
 function Util.isInsideRect(position, cx, cz, sizeX, sizeZ)
 	local dx = math.abs(position.X - cx)

@@ -191,8 +191,7 @@ function CombatService.Init(registry)
 
 	Remotes.get().CastSpell.OnServerEvent:Connect(onCastSpell)
 
-	Players.PlayerAdded:Connect(hookCharacter)
-	for _, player in ipairs(Players:GetPlayers()) do
+	Util.forEachPlayer(Players, function(player)
 		hookCharacter(player)
 		if player.Character then
 			local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
@@ -202,7 +201,7 @@ function CombatService.Init(registry)
 				end)
 			end
 		end
-	end
+	end)
 
 	Players.PlayerRemoving:Connect(function(player)
 		lastCast[player] = nil

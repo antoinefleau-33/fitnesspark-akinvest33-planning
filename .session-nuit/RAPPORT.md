@@ -3,6 +3,9 @@
 ## Résumé en 5 lignes max
 Jeu Roblox complet « Arcane Legends » livré : simulateur de sorcier avec canalisation de cristaux, 5 zones, familiers, ascensions, PvP en arène, classement global persistant et monétisation (5 gamepasses + 3 products, ProcessReceipt idempotent). 16 scripts Lua 5.1 purs (100 % validés `luac -p`), map et UI intégralement générées par script, serveur 100 % autoritaire, place `ArcaneLegends.rbxlx` prête à ouvrir dans Studio. 120 tests réels passent sous lua5.1 (44 logiques + 76 d'intégration exécutant le vrai code serveur sur un stub de l'API Roblox). Deux passes de revue manuelle effectuées (5 bugs corrigés). Tout est committé et pushé sur `claude/arcane-legends-roblox-1nyxnf`.
 
+## Passe de correction de bugs (matin, sur demande)
+6 bugs corrigés après revue haute intensité : autosave vulnérable à un join pendant une sauvegarde (itération de table pendant yield), course au login privant un acheteur du familier Seigneur du Vide, perte des gamepasses sur un simple hoquet de l'API Marketplace (désormais 3 tentatives), auto-canalisation bloquée sur les zones non possédées, mana achetée comptée au classement (D9 révisée), boilerplate dupliqué extrait dans Util.forEachPlayer. Détail : DECISIONS.md D17. 77 tests d'intégration verts après correctifs.
+
 ## Tâches terminées
 - Modules partagés → `arcane-legends/src/ReplicatedStorage/` (Config = tout l'équilibrage, Util, Remotes)
 - 10 services serveur + bootstrap → `arcane-legends/src/ServerScriptService/` (DataManager, Economy, MapBuilder, TrainingService, ZoneService, PetService, RebirthService, CombatService, MonetizationService, LeaderboardService, Main.server.lua)
