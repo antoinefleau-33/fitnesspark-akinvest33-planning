@@ -1,14 +1,15 @@
 # Rapport de session — nuit du 2026-08-13
 
 ## Résumé en 5 lignes max
-Jeu Roblox complet « Arcane Legends » livré : simulateur de sorcier avec canalisation de cristaux, 5 zones, familiers, ascensions, PvP en arène, classement global persistant et monétisation (5 gamepasses + 3 products, ProcessReceipt idempotent). 16 scripts Lua 5.1 purs (100 % validés `luac -p`), map et UI intégralement générées par script, serveur 100 % autoritaire, place `ArcaneLegends.rbxlx` prête à ouvrir dans Studio. 44 tests logiques réels passent sous lua5.1. Deux passes de revue manuelle effectuées (5 bugs corrigés). Tout est committé et pushé sur `claude/arcane-legends-roblox-1nyxnf`.
+Jeu Roblox complet « Arcane Legends » livré : simulateur de sorcier avec canalisation de cristaux, 5 zones, familiers, ascensions, PvP en arène, classement global persistant et monétisation (5 gamepasses + 3 products, ProcessReceipt idempotent). 16 scripts Lua 5.1 purs (100 % validés `luac -p`), map et UI intégralement générées par script, serveur 100 % autoritaire, place `ArcaneLegends.rbxlx` prête à ouvrir dans Studio. 120 tests réels passent sous lua5.1 (44 logiques + 76 d'intégration exécutant le vrai code serveur sur un stub de l'API Roblox). Deux passes de revue manuelle effectuées (5 bugs corrigés). Tout est committé et pushé sur `claude/arcane-legends-roblox-1nyxnf`.
 
 ## Tâches terminées
 - Modules partagés → `arcane-legends/src/ReplicatedStorage/` (Config = tout l'équilibrage, Util, Remotes)
 - 10 services serveur + bootstrap → `arcane-legends/src/ServerScriptService/` (DataManager, Economy, MapBuilder, TrainingService, ZoneService, PetService, RebirthService, CombatService, MonetizationService, LeaderboardService, Main.server.lua)
 - 2 LocalScripts → `arcane-legends/src/StarterPlayerScripts/` (InputClient, UIClient — UI en français)
 - Place jouable → `arcane-legends/ArcaneLegends.rbxlx` (générée par `build_rbxlx.py`, round-trip auto-vérifié)
-- Tests → `arcane-legends/tests/test_logic.lua` : 44/44 OK (équilibrage, tirage pondéré sur 20 000 tirages, formules de dégâts/ascension, formatage)
+- Tests logiques → `arcane-legends/tests/test_logic.lua` : 44/44 OK (équilibrage, tirage pondéré sur 20 000 tirages, formules de dégâts/ascension, formatage)
+- Tests d'intégration → `arcane-legends/tests/test_services.lua` + `tests/roblox_stub.lua` : 76/76 OK — le vrai code serveur exécuté hors Roblox (profils : chargement/reconcile/panne/session temporaire jamais sauvegardée/round-trip complet ; canalisation : cooldown/distance/verrou de zone/VIP ; zones : coût/progression ; familiers : tirage/équipement max 3 ; ascension ; PvP : arène/portée/cooldown/dégâts/victoire +25 gemmes ; ProcessReceipt : idempotence/joueur absent/session temporaire)
 - Revue manuelle ×2 → cohérence des 9 remotes, nil-safety Character/HumanoidRootPart (centralisée dans Util), zéro dépendance circulaire (registre de services) ; 5 corrections (orientation du panneau, caméra périmée, spam de notif, rebuild UI inutile, pcall sur les InvokeServer)
 - Docs → `arcane-legends/README.md` (installation + configuration des IDs)
 

@@ -85,7 +85,13 @@ arcane-legends/
   `python3 build_rbxlx.py` (auto-vérifie le round-trip des sources).
 - **Vérifier la syntaxe** (Lua 5.1 pur, garanti compatible Luau) :
   `for f in $(find src -name '*.lua'); do luac -p $f; done`
-- **Tests logiques** (hors Roblox) : `lua5.1 tests/test_logic.lua` — 44 tests.
+- **Tests logiques** (hors Roblox) : `lua5.1 tests/test_logic.lua` — 44 tests
+  (équilibrage, tirage pondéré, formules).
+- **Tests d'intégration** : `lua5.1 tests/test_services.lua` — 76 tests qui
+  exécutent le **vrai code serveur** (DataManager, Economy, Pets, Rebirth,
+  Training, Zones, Combat, Monetization) sur un stub de l'API Roblox
+  (`tests/roblox_stub.lua`) : chargement/sauvegarde/reconcile/panne DataStore,
+  cooldowns, verrous de zone, tirages, PvP, ProcessReceipt idempotent.
 
 ## Garanties techniques
 
