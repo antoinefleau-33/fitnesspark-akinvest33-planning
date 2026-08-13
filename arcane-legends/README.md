@@ -41,7 +41,10 @@ configuré »), le reste du jeu fonctionne normalement.
 arcane-legends/
 ├── ArcaneLegends.rbxlx          ← place prête à ouvrir dans Studio
 ├── build_rbxlx.py               ← régénère le .rbxlx depuis src/
-├── tests/test_logic.lua         ← 44 tests hors-Roblox (lua5.1)
+├── tests/
+│   ├── test_logic.lua           ← 44 tests logiques (lua5.1)
+│   ├── test_services.lua        ← 76 tests d'intégration (vrai code serveur)
+│   └── roblox_stub.lua          ← mini API Roblox pour les tests
 └── src/
     ├── ReplicatedStorage/       (ModuleScripts partagés)
     │   ├── Config.lua           ← TOUT l'équilibrage + IDs monétisation
