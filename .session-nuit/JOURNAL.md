@@ -1,3 +1,21 @@
 # Journal de session — nuit du 2026-08-13
 
-- ~03h10 — Démarrage. Repo propre sur branche `claude/arcane-legends-roblox-1nyxnf`. Installation de lua5.1 (luac) pour validation syntaxe. OK
+- ~03h10 — Démarrage. Repo propre sur branche `claude/arcane-legends-roblox-1nyxnf`. Installation de lua5.1 (luac) pour validation syntaxe. **OK**
+- ~03h15 — Cadre de session (.session-nuit/, PLAN, DECISIONS). **OK**
+- ~03h20 — `Config.lua` (équilibrage centralisé, IDs monétisation à 0 + TODO_UTILISATEUR). Coquille `)` vs `}` corrigée immédiatement, accents français ajoutés aux textes affichés. **OK**
+- ~03h25 — `Util.lua` (formatNumber, weightedRoll, clamp, deepCopy, nil-safety helpers) + `Remotes.lua` (définition unique des 9 remotes). **OK**
+- ~03h30 — `DataManager.lua` : retry+backoff, autosave 120 s, save déconnexion, BindToClose, session temporaire jamais sauvegardée, clés string. **OK**
+- ~03h40 — `Economy.lua` : multiplicateurs (familiers 1+Σ(mult−1), ascensions, gamepass), transactions, snapshot client. **OK**
+- ~03h50 — `MapBuilder.lua` : lobby+spawn+fontaine, 5 zones + 30 cristaux + totems, arène murée, île VIP + pads, panneau classement SurfaceGui, éclairage. **OK**
+- ~03h55 — Validation luac des 6 premiers fichiers + commit `db0698a`. **OK**
+- ~04h05 — `TrainingService` (canalisation validée serveur + auto-loop gamepass), `ZoneService` (achat totems, progression linéaire, pads VIP). **OK**
+- ~04h15 — `PetService` (tirage pondéré serveur, équipement max 3, orbes visuels soudés), `RebirthService` (sacrifice total, coût 10k×4ⁿ, auras 1/3/6/10). **OK**
+- ~04h25 — `CombatService` (PvP arène : portée 45, cd 0,6 s, clamp dégâts, +25 gemmes au vainqueur, projectile serveur), `MonetizationService` (cache gamepass + PromptGamePassPurchaseFinished, ProcessReceipt idempotent). **OK**
+- ~04h35 — `LeaderboardService` (OrderedDataStore, top 10, refresh 60 s, sessions temporaires exclues), `Main.server.lua` (registre anti-cycle). **OK**
+- ~04h45 — `InputClient` (PvP clic/tap raycast, animation cristaux via CollectionService) et `UIClient` (~700 lignes : stats, boutique, familiers, ascension, auto, notifications animées, textes flottants). **OK**
+- ~04h55 — luac -p : 16/16 fichiers valides. Commit `eb6529a`. **OK**
+- ~05h00 — `build_rbxlx.py` : génération de la place XML (sources échappées, pas de CDATA) + auto-vérification round-trip. `ArcaneLegends.rbxlx` généré (16 scripts, ~115 Ko). **OK**
+- ~05h10 — Revue manuelle n°1 : cohérence des 9 remotes serveur/client vérifiée ; 4 bugs corrigés : panneau classement orienté dos au lobby, caméra capturée une seule fois dans InputClient, spam de notif « zone verrouillée », reconstruction inutile de l'inventaire familiers à chaque gain. **OK**
+- ~05h20 — Banc de tests `tests/test_logic.lua` : 44 tests réels sous lua5.1 (Config + Util + formules). 43/44 au premier passage — l'échec était une erreur d'arithmétique dans la valeur ATTENDUE du test (59 250, pas 66 750), le code est correct. 44/44 après correction. Commit `e523da6`. **OK**
+- ~05h30 — Revue manuelle n°2 (durcissement client) : tous les `InvokeServer` de l'UI enveloppés dans `pcall`. Regénération du .rbxlx. **OK**
+- ~05h40 — Documentation : README d'installation, DECISIONS complété (16 décisions), RAPPORT. Commit final + push. **OK**

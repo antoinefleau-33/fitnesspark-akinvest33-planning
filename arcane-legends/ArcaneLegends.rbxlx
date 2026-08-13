@@ -3526,7 +3526,13 @@ for i = 1, #Config.Eggs do
 		Position = UDim2.new(0, 8, 1, -42),
 		Text = "Ouvrir",
 		OnClick = function()
-			local ok, result = remotes.BuyEgg:InvokeServer(i)
+			local invoked, ok, result = pcall(function()
+				return remotes.BuyEgg:InvokeServer(i)
+			end)
+			if not invoked then
+				showNotification("Le serveur n'a pas répondu, réessaie.", "erreur")
+				return
+			end
 			if ok and type(result) == "table" then
 				showNotification("✨ " .. result.Name .. " (" .. rarityDisplay(result.Rarity) ..
 					", x" .. tostring(result.Multiplier) .. ") rejoint tes familiers !", "succes")
@@ -3626,8 +3632,10 @@ local function refreshPets()
 			Text = pet.Equipped and "Retirer" or "Équiper",
 			Color = pet.Equipped and Color3.fromRGB(150, 90, 70) or Color3.fromRGB(70, 130, 90),
 			OnClick = function()
-				local ok, message = remotes.SetPetEquipped:InvokeServer(pet.Uid, not pet.Equipped)
-				if not ok then
+				local invoked, ok, message = pcall(function()
+					return remotes.SetPetEquipped:InvokeServer(pet.Uid, not pet.Equipped)
+				end)
+				if invoked and not ok then
 					showNotification(tostring(message), "erreur")
 				end
 			end,
@@ -3669,8 +3677,10 @@ local rebirthButton = mkButton(rebirthContent, {
 	Text = "S'élever",
 	Color = Color3.fromRGB(170, 110, 60),
 	OnClick = function()
-		local ok, message = remotes.DoRebirth:InvokeServer()
-		if not ok then
+		local invoked, ok, message = pcall(function()
+			return remotes.DoRebirth:InvokeServer()
+		end)
+		if invoked and not ok then
 			showNotification(tostring(message), "erreur")
 		end
 	end,
@@ -3803,8 +3813,10 @@ remotes.ProfileChanged.OnClientEvent:Connect(applySnapshot)
 
 -- Demande initiale (au cas ou le premier push serveur soit passe avant nous)
 task.spawn(function()
-	local initial = remotes.GetProfile:InvokeServer()
-	if initial and not snapshot then
+	local invoked, initial = pcall(function()
+		return remotes.GetProfile:InvokeServer()
+	end)
+	if invoked and initial and not snapshot then
 		applySnapshot(initial)
 	end
 end)
