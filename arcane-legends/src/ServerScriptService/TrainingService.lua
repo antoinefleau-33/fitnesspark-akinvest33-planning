@@ -19,6 +19,8 @@ local rng = Random.new()
 
 -- [player] = horodatage de la derniere canalisation (os.clock)
 local lastChannel = {}
+-- [player] = horodatage de la derniere notif "zone verrouillee" (anti-spam)
+local lastLockedNotify = {}
 local crystals = {} -- liste des cristaux construits par MapBuilder
 
 ----------------------------------------------------------------
@@ -68,8 +70,11 @@ local function validateChannel(player, crystal)
 	end
 	-- Zone physiquement ouverte mais gain verrouille tant que non achetee
 	if not data.Zones[tostring(zoneId)] then
-		Remotes.get().Notify:FireClient(player,
-			"Zone verrouillée ! Débloque « " .. zoneDef.Name .. " » à son totem d'entrée.", "erreur")
+		if not lastLockedNotify[player] or (now - lastLockedNotify[player]) > 2 then
+			lastLockedNotify[player] = now
+			Remotes.get().Notify:FireClient(player,
+				"Zone verrouillée ! Débloque « " .. zoneDef.Name .. " » à son totem d'entrée.", "erreur")
+		end
 		return false
 	end
 	return true, zoneDef.Multiplier
@@ -188,6 +193,7 @@ function TrainingService.Init(registry)
 	-- Nettoyage des cooldowns
 	Players.PlayerRemoving:Connect(function(player)
 		lastChannel[player] = nil
+		lastLockedNotify[player] = nil
 	end)
 
 	task.spawn(autoLoop)

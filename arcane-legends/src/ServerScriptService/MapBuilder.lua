@@ -514,9 +514,7 @@ local function buildLeaderboardBoard(root)
 	layout.Padding = UDim.new(0, 2)
 	layout.Parent = rows
 
-	-- Le panneau fait face au lobby (sud -> nord)
-	board.CFrame = CFrame.new(pos) * CFrame.Angles(0, math.rad(180), 0)
-
+	-- La face avant (-Z) du panneau regarde deja vers le lobby (z < 48)
 	return { Board = board, Gui = gui, Rows = rows }
 end
 

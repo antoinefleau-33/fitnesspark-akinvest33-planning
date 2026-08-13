@@ -1,0 +1,3836 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+	<External>null</External>
+	<External>nil</External>
+	<Item class="Workspace" referent="RBX1">
+		<Properties>
+			<string name="Name">Workspace</string>
+		</Properties>
+	</Item>
+	<Item class="ReplicatedStorage" referent="RBX2">
+		<Properties>
+			<string name="Name">ReplicatedStorage</string>
+		</Properties>
+		<Item class="ModuleScript" referent="RBX3">
+			<Properties>
+				<string name="Name">Config</string>
+				<ProtectedString name="Source">--[[
+	Config.lua (ModuleScript - ReplicatedStorage)
+	TOUT l'equilibrage du jeu "Arcane Legends" est centralise ici.
+	Partage entre serveur et client (le client ne s'en sert que pour l'affichage).
+	Lua 5.1 pur.
+]]
+
+local Config = {}
+
+----------------------------------------------------------------
+-- GENERAL
+----------------------------------------------------------------
+Config.GameName = "Arcane Legends"
+
+----------------------------------------------------------------
+-- CANALISATION (gain de mana sur les cristaux)
+----------------------------------------------------------------
+Config.Training = {
+	BaseManaPerChannel = 1,     -- gain de base avant multiplicateurs
+	ChannelRange = 14,          -- distance max joueur &lt;-&gt; cristal (studs), validee serveur
+	ChannelCooldown = 0.35,     -- anti-spam serveur (secondes)
+	AutoInterval = 0.6,         -- intervalle de l'auto-canalisation (gamepass)
+	GemChance = 0.05,           -- 5 % de chance de gemmes par canalisation
+	GemMin = 1,
+	GemMax = 3,
+}
+
+----------------------------------------------------------------
+-- ZONES (id numerique croissant ; cle string dans les données persistees)
+----------------------------------------------------------------
+Config.Zones = {
+	[1] = { Name = "Prairie Arcanique",  Cost = 0,       Multiplier = 1,   Color = {124, 200, 108}, CrystalColor = {170, 255, 140} },
+	[2] = { Name = "Forêt Enchantée",    Cost = 250,     Multiplier = 5,   Color = {52, 122, 82},   CrystalColor = {90, 255, 190}  },
+	[3] = { Name = "Cryptes Oubliées",   Cost = 5000,    Multiplier = 25,  Color = {110, 108, 128}, CrystalColor = {180, 160, 255} },
+	[4] = { Name = "Volcan Runique",     Cost = 100000,  Multiplier = 125, Color = {130, 60, 44},   CrystalColor = {255, 120, 60}  },
+	[5] = { Name = "Dimension Astrale",  Cost = 2000000, Multiplier = 625, Color = {70, 60, 140},   CrystalColor = {150, 200, 255} },
+}
+Config.ZoneCount = 5
+Config.CrystalsPerZone = 6
+
+-- Zone VIP (gamepass Sanctuaire VIP)
+Config.VIPZone = {
+	Name = "Sanctuaire VIP",
+	Multiplier = 150,
+	Color = {240, 200, 70},
+	CrystalColor = {255, 230, 120},
+	CrystalCount = 8,
+}
+
+----------------------------------------------------------------
+-- DISPOSITION DE LA MAP (tout est construit par script)
+----------------------------------------------------------------
+Config.Map = {
+	LobbySize = { X = 110, Z = 110 },            -- lobby centre en (0, 0)
+	ZoneSize = { X = 90, Z = 90 },
+	ZoneSpacing = 110,                            -- ecart entre centres de zones
+	ZoneRowZ = -150,                              -- les 5 zones alignees au nord du lobby
+	ArenaCenter = { X = 190, Z = 40 },
+	ArenaSize = { X = 80, Z = 80 },
+	VIPCenter = { X = -190, Z = 40 },
+	VIPSize = { X = 70, Z = 70 },
+	VIPHeight = 40,                               -- ile flottante
+	LeaderboardPos = { X = 0, Z = 48 },           -- panneau au sud du lobby
+}
+
+----------------------------------------------------------------
+-- GEMMES (monnaie secondaire)
+----------------------------------------------------------------
+Config.Gems = {
+	DuelWin = 25, -- gemmes gagnées par victoire en duel
+}
+
+----------------------------------------------------------------
+-- FAMILIERS
+----------------------------------------------------------------
+Config.Rarities = {
+	Commun     = { Display = "Commun",     Color = {180, 180, 180}, Order = 1 },
+	Rare       = { Display = "Rare",       Color = {80, 150, 255},  Order = 2 },
+	Epique     = { Display = "Épique",     Color = {180, 90, 255},  Order = 3 },
+	Legendaire = { Display = "Légendaire", Color = {255, 190, 60},  Order = 4 },
+	Mythique   = { Display = "Mythique",   Color = {255, 70, 90},   Order = 5 },
+}
+
+-- Definitions des familiers (id string -&gt; stats)
+Config.Pets = {
+	-- Oeuf Novice
+	lueur        = { Name = "Lueur",              Rarity = "Commun",     Multiplier = 1.2 },
+	feufollet    = { Name = "Feu Follet",         Rarity = "Commun",     Multiplier = 1.25 },
+	salamandre   = { Name = "Salamandre Bleue",   Rarity = "Rare",       Multiplier = 1.4 },
+	golem        = { Name = "Golem Runique",      Rarity = "Epique",     Multiplier = 1.7 },
+	phenix       = { Name = "Phénix Mineur",      Rarity = "Legendaire", Multiplier = 2.2 },
+	-- Oeuf Mystique
+	sylvestre    = { Name = "Esprit Sylvestre",   Rarity = "Commun",     Multiplier = 1.3 },
+	gardien      = { Name = "Gardien de Cristal", Rarity = "Rare",       Multiplier = 1.5 },
+	chimere      = { Name = "Chimère d'Onyx",     Rarity = "Epique",     Multiplier = 1.9 },
+	dragon       = { Name = "Dragon d'Améthyste", Rarity = "Legendaire", Multiplier = 2.6 },
+	-- Oeuf Celeste
+	djinn        = { Name = "Djinn des Sables",   Rarity = "Rare",       Multiplier = 1.7 },
+	licorne      = { Name = "Licorne Astrale",    Rarity = "Epique",     Multiplier = 2.2 },
+	titan        = { Name = "Titan Stellaire",    Rarity = "Legendaire", Multiplier = 3.2 },
+	-- Exclusifs monetisation
+	apprentineant = { Name = "Apprenti du Néant", Rarity = "Epique",     Multiplier = 1.6 },  -- Pack de Depart
+	seigneurvide  = { Name = "Seigneur du Vide",  Rarity = "Mythique",   Multiplier = 3.5 },  -- Gamepass
+}
+
+-- Oeufs achetables en gemmes (tirage pondere COTE SERVEUR)
+Config.Eggs = {
+	[1] = {
+		Id = "novice", Name = "Œuf Novice", Cost = 50,
+		Pool = { lueur = 50, feufollet = 30, salamandre = 15, golem = 4, phenix = 1 },
+	},
+	[2] = {
+		Id = "mystique", Name = "Œuf Mystique", Cost = 500,
+		Pool = { sylvestre = 45, gardien = 35, chimere = 15, dragon = 5 },
+	},
+	[3] = {
+		Id = "celeste", Name = "Œuf Céleste", Cost = 5000,
+		Pool = { djinn = 50, licorne = 35, titan = 15 },
+	},
+}
+
+Config.MaxEquippedPets = 3
+
+----------------------------------------------------------------
+-- ASCENSIONS (rebirth)
+----------------------------------------------------------------
+Config.Rebirth = {
+	BaseCost = 10000,      -- cout = BaseCost * CostFactor ^ nbAscensions
+	CostFactor = 4,
+	BonusPerRebirth = 0.5, -- +50 % de mana par ascension (permanent)
+	AuraTiers = { 1, 3, 6, 10 }, -- paliers d'auras de particules
+}
+
+----------------------------------------------------------------
+-- PVP (arene)
+----------------------------------------------------------------
+Config.Combat = {
+	Range = 45,          -- portee max du sort (studs), validee serveur
+	Cooldown = 0.6,      -- cooldown par joueur (secondes), valide serveur
+	MinDamage = 5,
+	MaxDamage = 50,
+	ManaExponent = 0.35, -- degats = clamp(5 + mana^0.35, 5, 50)
+	ProjectileSpeed = 90,
+}
+
+----------------------------------------------------------------
+-- MONETISATION (IDs a creer sur create.roblox.com puis a renseigner ici)
+----------------------------------------------------------------
+Config.GamePasses = {
+	DoubleMana  = { Id = 0, Name = "x2 Mana",            Desc = "Double toute la mana canalisée." },        -- TODO_UTILISATEUR : ID du gamepass
+	DoubleGems  = { Id = 0, Name = "x2 Gemmes",          Desc = "Double toutes les gemmes gagnées." },      -- TODO_UTILISATEUR : ID du gamepass
+	AutoTrain   = { Id = 0, Name = "Auto-Canalisation",  Desc = "Canalise automatiquement les cristaux proches." }, -- TODO_UTILISATEUR : ID du gamepass
+	VIPZone     = { Id = 0, Name = "Sanctuaire VIP",     Desc = "Accès au Sanctuaire VIP et ses cristaux x150." },  -- TODO_UTILISATEUR : ID du gamepass
+	VoidLord    = { Id = 0, Name = "Seigneur du Vide",   Desc = "Familier mythique exclusif x3.5." },       -- TODO_UTILISATEUR : ID du gamepass
+}
+
+Config.Products = {
+	StarterPack = { Id = 0, Name = "Pack de Départ", Desc = "UNIQUE : 5000 mana + 200 gemmes + familier exclusif.", Mana = 5000, Gems = 200, Pet = "apprentineant", Unique = true }, -- TODO_UTILISATEUR : ID du developer product
+	Gems100     = { Id = 0, Name = "100 Gemmes",     Desc = "Un petit sac de gemmes.",  Gems = 100 },  -- TODO_UTILISATEUR : ID du developer product
+	Gems1200    = { Id = 0, Name = "1200 Gemmes",    Desc = "Un coffre de gemmes.",     Gems = 1200 }, -- TODO_UTILISATEUR : ID du developer product
+}
+
+----------------------------------------------------------------
+-- DONNEES (DataStore)
+----------------------------------------------------------------
+Config.Data = {
+	StoreName = "ArcaneLegends_Profil_v1",
+	OrderedStoreName = "ArcaneLegends_ManaTotale_v1",
+	AutosaveInterval = 120, -- secondes
+	MaxRetries = 3,
+	RetryBaseDelay = 2,     -- backoff exponentiel : 2 s, 4 s, 8 s
+}
+
+----------------------------------------------------------------
+-- CLASSEMENT
+----------------------------------------------------------------
+Config.Leaderboard = {
+	RefreshInterval = 60, -- secondes
+	TopN = 10,
+}
+
+return Config
+</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX4">
+			<Properties>
+				<string name="Name">Remotes</string>
+				<ProtectedString name="Source">--[[
+	Remotes.lua (ModuleScript - ReplicatedStorage)
+	Point UNIQUE de definition des RemoteEvents / RemoteFunctions.
+	Le serveur les cree, le client les attend : aucune desynchronisation possible.
+	Lua 5.1 pur.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local FOLDER_NAME = "ArcaneRemotes"
+
+-- nom -&gt; classe
+local DEFINITIONS = {
+	-- Serveur -&gt; Client
+	Notify         = "RemoteEvent",   -- (message: string, kind: string)
+	ProfileChanged = "RemoteEvent",   -- (snapshot: table)
+	ChannelResult  = "RemoteEvent",   -- (crystalPosition: Vector3, mana: number, gems: number)
+
+	-- Client -&gt; Serveur
+	CastSpell      = "RemoteEvent",   -- (targetPlayer: Player)
+	ToggleAuto     = "RemoteEvent",   -- (enabled: boolean)
+
+	-- Client -&gt; Serveur (avec reponse)
+	GetProfile     = "RemoteFunction", -- () -&gt; snapshot
+	BuyEgg         = "RemoteFunction", -- (eggIndex: number) -&gt; ok, petInfoOuMessage
+	SetPetEquipped = "RemoteFunction", -- (petUid: string, equipped: boolean) -&gt; ok, message
+	DoRebirth      = "RemoteFunction", -- () -&gt; ok, message
+}
+
+local Remotes = {}
+local cache = nil
+
+local function buildServer()
+	local folder = ReplicatedStorage:FindFirstChild(FOLDER_NAME)
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = FOLDER_NAME
+		folder.Parent = ReplicatedStorage
+	end
+	local result = {}
+	for name, className in pairs(DEFINITIONS) do
+		local remote = folder:FindFirstChild(name)
+		if not remote then
+			remote = Instance.new(className)
+			remote.Name = name
+			remote.Parent = folder
+		end
+		result[name] = remote
+	end
+	return result
+end
+
+local function buildClient()
+	local folder = ReplicatedStorage:WaitForChild(FOLDER_NAME)
+	local result = {}
+	for name, _ in pairs(DEFINITIONS) do
+		result[name] = folder:WaitForChild(name)
+	end
+	return result
+end
+
+-- Retourne la table { nom -&gt; instance remote } (creee au premier appel)
+function Remotes.get()
+	if cache then
+		return cache
+	end
+	if RunService:IsServer() then
+		cache = buildServer()
+	else
+		cache = buildClient()
+	end
+	return cache
+end
+
+return Remotes
+</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX5">
+			<Properties>
+				<string name="Name">Util</string>
+				<ProtectedString name="Source">--[[
+	Util.lua (ModuleScript - ReplicatedStorage)
+	Fonctions utilitaires partagees serveur/client. Lua 5.1 pur.
+]]
+
+local Util = {}
+
+-- Formate un nombre en notation abregee francaise (1.2k, 3.4M, ...)
+function Util.formatNumber(n)
+	n = tonumber(n) or 0
+	local neg = n &lt; 0
+	n = math.abs(n)
+	local suffixes = { { 1e12, "T" }, { 1e9, "Md" }, { 1e6, "M" }, { 1e3, "k" } }
+	local result
+	if n &lt; 1000 then
+		result = tostring(math.floor(n + 0.5))
+	else
+		result = tostring(n)
+		for i = 1, #suffixes do
+			local threshold = suffixes[i][1]
+			local suffix = suffixes[i][2]
+			if n &gt;= threshold then
+				local value = n / threshold
+				if value &gt;= 100 then
+					result = string.format("%d%s", math.floor(value), suffix)
+				else
+					result = string.format("%.1f%s", math.floor(value * 10) / 10, suffix)
+				end
+				break
+			end
+		end
+	end
+	if neg then
+		return "-" .. result
+	end
+	return result
+end
+
+-- Copie profonde d'une table (sans metatables, suffisant pour les profils)
+function Util.deepCopy(original)
+	if type(original) ~= "table" then
+		return original
+	end
+	local copy = {}
+	for key, value in pairs(original) do
+		copy[key] = Util.deepCopy(value)
+	end
+	return copy
+end
+
+-- Tirage pondere : pool = { cle = poids }, rng = Random.new() cote serveur.
+-- Retourne la cle tiree (ou nil si pool vide).
+function Util.weightedRoll(pool, rng)
+	local total = 0
+	for _, weight in pairs(pool) do
+		total = total + weight
+	end
+	if total &lt;= 0 then
+		return nil
+	end
+	local roll
+	if rng then
+		roll = rng:NextNumber() * total
+	else
+		roll = math.random() * total
+	end
+	local cumulative = 0
+	local lastKey = nil
+	for key, weight in pairs(pool) do
+		cumulative = cumulative + weight
+		lastKey = key
+		if roll &lt;= cumulative then
+			return key
+		end
+	end
+	return lastKey -- garde-fou arrondi flottant
+end
+
+-- clamp compatible Lua 5.1 (math.clamp est du Luau)
+function Util.clamp(value, minValue, maxValue)
+	if value &lt; minValue then
+		return minValue
+	end
+	if value &gt; maxValue then
+		return maxValue
+	end
+	return value
+end
+
+-- Convertit {r, g, b} (Config) en Color3
+function Util.toColor3(rgb)
+	return Color3.fromRGB(rgb[1], rgb[2], rgb[3])
+end
+
+-- Compte les elements d'un dictionnaire
+function Util.dictCount(dict)
+	local count = 0
+	for _ in pairs(dict) do
+		count = count + 1
+	end
+	return count
+end
+
+-- Retourne la HumanoidRootPart d'un joueur, ou nil (nil-safety centralisee)
+function Util.getRootPart(player)
+	if not player then
+		return nil
+	end
+	local character = player.Character
+	if not character then
+		return nil
+	end
+	return character:FindFirstChild("HumanoidRootPart")
+end
+
+-- Retourne l'Humanoid vivant d'un joueur, ou nil
+function Util.getAliveHumanoid(player)
+	if not player then
+		return nil
+	end
+	local character = player.Character
+	if not character then
+		return nil
+	end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if humanoid and humanoid.Health &gt; 0 then
+		return humanoid
+	end
+	return nil
+end
+
+-- Teste si une position est dans un rectangle horizontal centre en (cx, cz)
+function Util.isInsideRect(position, cx, cz, sizeX, sizeZ)
+	local dx = math.abs(position.X - cx)
+	local dz = math.abs(position.Z - cz)
+	return dx &lt;= sizeX / 2 and dz &lt;= sizeZ / 2
+end
+
+return Util
+</ProtectedString>
+			</Properties>
+		</Item>
+	</Item>
+	<Item class="ServerScriptService" referent="RBX6">
+		<Properties>
+			<string name="Name">ServerScriptService</string>
+		</Properties>
+		<Item class="ModuleScript" referent="RBX7">
+			<Properties>
+				<string name="Name">CombatService</string>
+				<ProtectedString name="Source">--[[
+	CombatService.lua (ModuleScript - ServerScriptService)
+	PvP en arene : cliquer un adversaire = sort (projectile visuel).
+	Degats = clamp(5 + Mana^0.35, 5, 50).
+	Validations SERVEUR : les deux joueurs dans l'arene, portee 45, cooldown 0.6 s.
+	Vainqueur d'un duel : +25 gemmes.
+	Lua 5.1 pur.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
+local Util = require(ReplicatedStorage:WaitForChild("Util"))
+local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
+
+local CombatService = {}
+
+local services = nil
+
+local lastCast = {}     -- [player] = os.clock() du dernier sort
+local lastAttacker = {} -- [victimPlayer] = { Attacker = player, Time = os.clock() }
+
+local KILL_CREDIT_WINDOW = 10 -- secondes pendant lesquelles un coup compte pour la victoire
+
+----------------------------------------------------------------
+-- Zone d'arene
+----------------------------------------------------------------
+
+local function isInArena(position)
+	local arena = services.MapHandles.Arena
+	return Util.isInsideRect(position, arena.CenterX, arena.CenterZ, arena.SizeX, arena.SizeZ)
+end
+
+----------------------------------------------------------------
+-- Projectile visuel (cree serveur, replique a tous)
+----------------------------------------------------------------
+
+local function spawnProjectile(fromPosition, toPosition)
+	local distance = (toPosition - fromPosition).Magnitude
+	if distance &lt; 1 then
+		return
+	end
+	local direction = (toPosition - fromPosition).Unit
+	local travelTime = distance / Config.Combat.ProjectileSpeed
+
+	local orb = Instance.new("Part")
+	orb.Name = "SortArcanique"
+	orb.Shape = Enum.PartType.Ball
+	orb.Size = Vector3.new(1.4, 1.4, 1.4)
+	orb.Color = Color3.fromRGB(170, 110, 255)
+	orb.Material = Enum.Material.Neon
+	orb.Anchored = true
+	orb.CanCollide = false
+	orb.CFrame = CFrame.new(fromPosition)
+
+	local light = Instance.new("PointLight")
+	light.Color = orb.Color
+	light.Range = 10
+	light.Parent = orb
+
+	local trail = Instance.new("ParticleEmitter")
+	trail.Color = ColorSequence.new(orb.Color)
+	trail.LightEmission = 1
+	trail.Rate = 40
+	trail.Lifetime = NumberRange.new(0.2, 0.4)
+	trail.Speed = NumberRange.new(0, 0.5)
+	trail.Size = NumberSequence.new(0.4)
+	trail.Parent = orb
+
+	orb.Parent = Workspace
+
+	task.spawn(function()
+		local steps = math.max(2, math.floor(travelTime / 0.03))
+		for i = 1, steps do
+			orb.CFrame = CFrame.new(fromPosition + direction * (distance * i / steps))
+			task.wait(travelTime / steps)
+		end
+		-- Petit eclat d'impact
+		orb.Size = Vector3.new(3, 3, 3)
+		orb.Transparency = 0.4
+		trail.Enabled = false
+		task.wait(0.12)
+		orb:Destroy()
+	end)
+end
+
+----------------------------------------------------------------
+-- Lancer de sort
+----------------------------------------------------------------
+
+local function onCastSpell(attacker, target)
+	-- Le client ne fait que DEMANDER : tout est verifie ici.
+	if typeof(target) ~= "Instance" or not target:IsA("Player") then
+		return
+	end
+	if target == attacker or target.Parent == nil then
+		return
+	end
+
+	local data = services.DataManager.GetProfile(attacker)
+	if not data then
+		return
+	end
+
+	-- Cooldown serveur
+	local now = os.clock()
+	if lastCast[attacker] and (now - lastCast[attacker]) &lt; Config.Combat.Cooldown then
+		return
+	end
+
+	local attackerRoot = Util.getRootPart(attacker)
+	local targetRoot = Util.getRootPart(target)
+	if not attackerRoot or not targetRoot then
+		return
+	end
+
+	-- Les DEUX joueurs doivent etre dans l'arene
+	if not isInArena(attackerRoot.Position) or not isInArena(targetRoot.Position) then
+		return
+	end
+
+	-- Portee validee serveur
+	local distance = (attackerRoot.Position - targetRoot.Position).Magnitude
+	if distance &gt; Config.Combat.Range then
+		return
+	end
+
+	local targetHumanoid = Util.getAliveHumanoid(target)
+	if not targetHumanoid then
+		return
+	end
+
+	lastCast[attacker] = now
+
+	-- Degats bases sur la mana ACTUELLE de l'attaquant
+	local damage = Util.clamp(
+		Config.Combat.MinDamage + data.Mana ^ Config.Combat.ManaExponent,
+		Config.Combat.MinDamage,
+		Config.Combat.MaxDamage)
+
+	lastAttacker[target] = { Attacker = attacker, Time = now }
+	spawnProjectile(
+		attackerRoot.Position + Vector3.new(0, 1, 0),
+		targetRoot.Position)
+	targetHumanoid:TakeDamage(damage)
+end
+
+----------------------------------------------------------------
+-- Victoire de duel
+----------------------------------------------------------------
+
+local function onCharacterDied(victim)
+	local record = lastAttacker[victim]
+	lastAttacker[victim] = nil
+	if not record then
+		return
+	end
+	if (os.clock() - record.Time) &gt; KILL_CREDIT_WINDOW then
+		return
+	end
+	local winner = record.Attacker
+	if not winner or winner.Parent == nil then
+		return
+	end
+	local gained = services.Economy.AddGems(winner, Config.Gems.DuelWin, true)
+	Remotes.get().Notify:FireClient(winner,
+		"Duel remporté contre " .. victim.Name .. " ! +" .. tostring(gained or Config.Gems.DuelWin) .. " gemmes.", "gemme")
+	Remotes.get().Notify:FireClient(victim,
+		"Duel perdu contre " .. winner.Name .. "... Reviens plus fort !", "info")
+end
+
+local function hookCharacter(player)
+	player.CharacterAdded:Connect(function(character)
+		local humanoid = character:WaitForChild("Humanoid", 10)
+		if humanoid then
+			humanoid.Died:Connect(function()
+				onCharacterDied(player)
+			end)
+		end
+	end)
+end
+
+----------------------------------------------------------------
+-- Init
+----------------------------------------------------------------
+
+function CombatService.Init(registry)
+	services = registry
+
+	Remotes.get().CastSpell.OnServerEvent:Connect(onCastSpell)
+
+	Players.PlayerAdded:Connect(hookCharacter)
+	for _, player in ipairs(Players:GetPlayers()) do
+		hookCharacter(player)
+		if player.Character then
+			local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+			if humanoid then
+				humanoid.Died:Connect(function()
+					onCharacterDied(player)
+				end)
+			end
+		end
+	end
+
+	Players.PlayerRemoving:Connect(function(player)
+		lastCast[player] = nil
+		lastAttacker[player] = nil
+	end)
+end
+
+return CombatService
+</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX8">
+			<Properties>
+				<string name="Name">DataManager</string>
+				<ProtectedString name="Source">--[[
+	DataManager.lua (ModuleScript - ServerScriptService)
+	Chargement / sauvegarde des profils joueurs.
+	- Retry + backoff exponentiel sur toutes les operations DataStore
+	- Autosave periodique, save a la deconnexion, BindToClose
+	- Echec de chargement =&gt; session TEMPORAIRE jamais sauvegardee
+	  (on n'ecrase jamais de vraies donnees avec un profil vide)
+	- Toutes les cles de tables persistees sont des STRINGS (contrainte JSON)
+	Lua 5.1 pur.
+]]
+
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
+local Util = require(ReplicatedStorage:WaitForChild("Util"))
+local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
+
+local DataManager = {}
+
+local services = nil
+local store = nil
+
+-- [player] = { Data = table, CanSave = bool }
+local sessions = {}
+
+-- Modele de profil. Toutes les cles de sous-tables persistees sont des strings.
+local PROFILE_TEMPLATE = {
+	Version = 1,
+	Mana = 0,
+	Gems = 0,
+	Rebirths = 0,
+	TotalMana = 0,                -- mana totale gagnee (classement global)
+	Zones = { ["1"] = true },     -- zoneId (string) -&gt; true
+	Pets = {},                    -- uid (string) -&gt; { Id = petId, Equipped = bool }
+	PetCounter = 0,
+	AutoTrain = false,
+	StarterPackOwned = false,
+	VoidLordGranted = false,
+	Purchases = {},               -- PurchaseId (string) -&gt; true (idempotence ProcessReceipt)
+}
+
+----------------------------------------------------------------
+-- Outils internes
+----------------------------------------------------------------
+
+local function profileKey(userId)
+	return "Joueur_" .. tostring(userId)
+end
+
+-- Appelle fn avec retry + backoff exponentiel. Retourne ok, resultatOuErreur.
+local function withRetry(operationName, fn)
+	local delay = Config.Data.RetryBaseDelay
+	local lastError = nil
+	for attempt = 1, Config.Data.MaxRetries do
+		local ok, result = pcall(fn)
+		if ok then
+			return true, result
+		end
+		lastError = result
+		warn(string.format("[DataManager] %s : tentative %d/%d echouee : %s",
+			operationName, attempt, Config.Data.MaxRetries, tostring(result)))
+		if attempt &lt; Config.Data.MaxRetries then
+			task.wait(delay)
+			delay = delay * 2
+		end
+	end
+	return false, lastError
+end
+
+-- Complete les cles manquantes du profil avec le modele (migration douce)
+local function reconcile(data, template)
+	for key, defaultValue in pairs(template) do
+		if data[key] == nil then
+			data[key] = Util.deepCopy(defaultValue)
+		elseif type(defaultValue) == "table" and type(data[key]) ~= "table" then
+			data[key] = Util.deepCopy(defaultValue)
+		end
+	end
+	return data
+end
+
+local function createLeaderstats(player, data)
+	local leaderstats = Instance.new("Folder")
+	leaderstats.Name = "leaderstats"
+
+	local mana = Instance.new("StringValue")
+	mana.Name = "Mana"
+	mana.Value = Util.formatNumber(data.Mana)
+	mana.Parent = leaderstats
+
+	local gems = Instance.new("StringValue")
+	gems.Name = "Gemmes"
+	gems.Value = Util.formatNumber(data.Gems)
+	gems.Parent = leaderstats
+
+	local rebirths = Instance.new("IntValue")
+	rebirths.Name = "Ascensions"
+	rebirths.Value = data.Rebirths
+	rebirths.Parent = leaderstats
+
+	leaderstats.Parent = player
+end
+
+----------------------------------------------------------------
+-- API publique
+----------------------------------------------------------------
+
+-- Retourne le profil (table) ou nil si pas encore charge
+function DataManager.GetProfile(player)
+	local session = sessions[player]
+	if session then
+		return session.Data
+	end
+	return nil
+end
+
+-- La session peut-elle etre sauvegardee ? (false = session temporaire)
+function DataManager.CanSave(player)
+	local session = sessions[player]
+	return session ~= nil and session.CanSave
+end
+
+-- Met a jour l'affichage leaderstats du joueur
+function DataManager.UpdateLeaderstats(player)
+	local data = DataManager.GetProfile(player)
+	if not data then
+		return
+	end
+	local leaderstats = player:FindFirstChild("leaderstats")
+	if not leaderstats then
+		return
+	end
+	local mana = leaderstats:FindFirstChild("Mana")
+	if mana then
+		mana.Value = Util.formatNumber(data.Mana)
+	end
+	local gems = leaderstats:FindFirstChild("Gemmes")
+	if gems then
+		gems.Value = Util.formatNumber(data.Gems)
+	end
+	local rebirths = leaderstats:FindFirstChild("Ascensions")
+	if rebirths then
+		rebirths.Value = data.Rebirths
+	end
+end
+
+-- Sauvegarde le profil d'un joueur (respecte CanSave). Retourne ok.
+function DataManager.SaveProfile(player)
+	local session = sessions[player]
+	if not session then
+		return false
+	end
+	if not session.CanSave then
+		warn("[DataManager] Session temporaire pour " .. player.Name .. " : sauvegarde refusee (protection des donnees).")
+		return false
+	end
+	local dataCopy = Util.deepCopy(session.Data)
+	local ok = withRetry("SaveProfile(" .. player.Name .. ")", function()
+		return store:UpdateAsync(profileKey(player.UserId), function()
+			return dataCopy
+		end)
+	end)
+	return ok
+end
+
+-- Charge (ou cree) le profil d'un joueur qui vient d'arriver
+local function loadProfile(player)
+	local key = profileKey(player.UserId)
+	local ok, stored = withRetry("LoadProfile(" .. player.Name .. ")", function()
+		return store:GetAsync(key)
+	end)
+
+	local session
+	if not ok then
+		-- Echec DataStore : session temporaire, JAMAIS sauvegardee
+		session = { Data = Util.deepCopy(PROFILE_TEMPLATE), CanSave = false }
+		warn("[DataManager] Chargement impossible pour " .. player.Name .. " : session temporaire (aucune sauvegarde ne sera faite).")
+	elseif stored == nil then
+		-- Nouveau joueur
+		session = { Data = Util.deepCopy(PROFILE_TEMPLATE), CanSave = true }
+	else
+		session = { Data = reconcile(stored, PROFILE_TEMPLATE), CanSave = true }
+	end
+
+	if not player.Parent then
+		return -- le joueur est parti pendant le chargement
+	end
+
+	sessions[player] = session
+	createLeaderstats(player, session.Data)
+
+	if services and services.Economy then
+		services.Economy.PushSnapshot(player)
+	end
+	if not session.CanSave then
+		Remotes.get().Notify:FireClient(player,
+			"Connexion aux sauvegardes impossible : session temporaire, ta progression ne sera PAS enregistrée.", "erreur")
+	end
+end
+
+local function onPlayerRemoving(player)
+	local session = sessions[player]
+	if session then
+		DataManager.SaveProfile(player)
+		sessions[player] = nil
+	end
+end
+
+-- Sauvegarde tout le monde (autosave / BindToClose)
+function DataManager.SaveAll()
+	for player, _ in pairs(sessions) do
+		DataManager.SaveProfile(player)
+	end
+end
+
+function DataManager.Init(registry)
+	services = registry
+	store = DataStoreService:GetDataStore(Config.Data.StoreName)
+
+	Players.PlayerAdded:Connect(function(player)
+		loadProfile(player)
+	end)
+	-- Joueurs deja presents (si le script demarre apres eux)
+	for _, player in ipairs(Players:GetPlayers()) do
+		task.spawn(loadProfile, player)
+	end
+
+	Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+	-- Autosave periodique
+	task.spawn(function()
+		while true do
+			task.wait(Config.Data.AutosaveInterval)
+			DataManager.SaveAll()
+		end
+	end)
+
+	-- Sauvegarde a la fermeture du serveur
+	game:BindToClose(function()
+		if RunService:IsStudio() then
+			-- En Studio, laisser juste le temps aux saves de partir
+			DataManager.SaveAll()
+			task.wait(2)
+			return
+		end
+		local remaining = 0
+		for player, _ in pairs(sessions) do
+			remaining = remaining + 1
+			task.spawn(function()
+				DataManager.SaveProfile(player)
+				remaining = remaining - 1
+			end)
+		end
+		local deadline = os.clock() + 25
+		while remaining &gt; 0 and os.clock() &lt; deadline do
+			task.wait(0.1)
+		end
+	end)
+end
+
+return DataManager
+</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX9">
+			<Properties>
+				<string name="Name">Economy</string>
+				<ProtectedString name="Source">--[[
+	Economy.lua (ModuleScript - ServerScriptService)
+	Source unique de verite pour :
+	- les multiplicateurs (familiers, ascensions, gamepasses)
+	- toutes les transactions de mana et de gemmes
+	- l'envoi du snapshot de profil au client (ProfileChanged)
+	Lua 5.1 pur.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
+local Util = require(ReplicatedStorage:WaitForChild("Util"))
+local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
+
+local Economy = {}
+
+local services = nil
+
+----------------------------------------------------------------
+-- Multiplicateurs
+----------------------------------------------------------------
+
+-- Multiplicateur familiers : 1 + somme des (mult - 1) des familiers equipes
+function Economy.GetPetMultiplier(player)
+	local data = services.DataManager.GetProfile(player)
+	if not data then
+		return 1
+	end
+	local total = 1
+	for _, pet in pairs(data.Pets) do
+		if pet.Equipped then
+			local def = Config.Pets[pet.Id]
+			if def then
+				total = total + (def.Multiplier - 1)
+			end
+		end
+	end
+	return total
+end
+
+-- Multiplicateur ascensions : 1 + 0.5 par ascension
+function Economy.GetRebirthMultiplier(player)
+	local data = services.DataManager.GetProfile(player)
+	if not data then
+		return 1
+	end
+	return 1 + Config.Rebirth.BonusPerRebirth * data.Rebirths
+end
+
+-- Multiplicateur gamepass mana (x2 si possede)
+function Economy.GetPassManaMultiplier(player)
+	if services.Monetization and services.Monetization.OwnsPass(player, "DoubleMana") then
+		return 2
+	end
+	return 1
+end
+
+-- Multiplicateur global HORS zone (la zone depend du cristal canalise)
+function Economy.GetGlobalMultiplier(player)
+	return Economy.GetPetMultiplier(player)
+		* Economy.GetRebirthMultiplier(player)
+		* Economy.GetPassManaMultiplier(player)
+end
+
+----------------------------------------------------------------
+-- Transactions
+----------------------------------------------------------------
+
+-- Ajout brut de mana (deja multipliee). Compte dans TotalMana si countTotal ~= false.
+function Economy.AddMana(player, amount, countTotal)
+	local data = services.DataManager.GetProfile(player)
+	if not data or amount &lt;= 0 then
+		return
+	end
+	data.Mana = data.Mana + amount
+	if countTotal ~= false then
+		data.TotalMana = data.TotalMana + amount
+	end
+	services.DataManager.UpdateLeaderstats(player)
+	Economy.PushSnapshot(player)
+end
+
+function Economy.SpendMana(player, amount)
+	local data = services.DataManager.GetProfile(player)
+	if not data or amount &lt; 0 or data.Mana &lt; amount then
+		return false
+	end
+	data.Mana = data.Mana - amount
+	services.DataManager.UpdateLeaderstats(player)
+	Economy.PushSnapshot(player)
+	return true
+end
+
+-- Ajout de gemmes. applyPass = true pour appliquer le gamepass x2 Gemmes
+-- (gains de jeu : canalisation, duels). Les ACHATS (products) passent applyPass = false.
+function Economy.AddGems(player, amount, applyPass)
+	local data = services.DataManager.GetProfile(player)
+	if not data or amount &lt;= 0 then
+		return
+	end
+	local final = amount
+	if applyPass and services.Monetization and services.Monetization.OwnsPass(player, "DoubleGems") then
+		final = final * 2
+	end
+	data.Gems = data.Gems + final
+	services.DataManager.UpdateLeaderstats(player)
+	Economy.PushSnapshot(player)
+	return final
+end
+
+function Economy.SpendGems(player, amount)
+	local data = services.DataManager.GetProfile(player)
+	if not data or amount &lt; 0 or data.Gems &lt; amount then
+		return false
+	end
+	data.Gems = data.Gems - amount
+	services.DataManager.UpdateLeaderstats(player)
+	Economy.PushSnapshot(player)
+	return true
+end
+
+----------------------------------------------------------------
+-- Snapshot client
+----------------------------------------------------------------
+
+-- Cout de la prochaine ascension
+function Economy.GetRebirthCost(player)
+	local data = services.DataManager.GetProfile(player)
+	local n = data and data.Rebirths or 0
+	return Config.Rebirth.BaseCost * (Config.Rebirth.CostFactor ^ n)
+end
+
+function Economy.BuildSnapshot(player)
+	local data = services.DataManager.GetProfile(player)
+	if not data then
+		return nil
+	end
+
+	local pets = {}
+	for uid, pet in pairs(data.Pets) do
+		local def = Config.Pets[pet.Id]
+		if def then
+			table.insert(pets, {
+				Uid = uid,
+				Id = pet.Id,
+				Name = def.Name,
+				Rarity = def.Rarity,
+				Multiplier = def.Multiplier,
+				Equipped = pet.Equipped == true,
+			})
+		end
+	end
+	table.sort(pets, function(a, b)
+		local ra = Config.Rarities[a.Rarity] and Config.Rarities[a.Rarity].Order or 0
+		local rb = Config.Rarities[b.Rarity] and Config.Rarities[b.Rarity].Order or 0
+		if ra ~= rb then
+			return ra &gt; rb
+		end
+		return a.Uid &lt; b.Uid
+	end)
+
+	local passes = {}
+	if services.Monetization then
+		for passKey, _ in pairs(Config.GamePasses) do
+			passes[passKey] = services.Monetization.OwnsPass(player, passKey)
+		end
+	end
+
+	return {
+		Mana = data.Mana,
+		Gems = data.Gems,
+		Rebirths = data.Rebirths,
+		TotalMana = data.TotalMana,
+		Zones = data.Zones,
+		Pets = pets,
+		AutoTrain = data.AutoTrain == true,
+		StarterPackOwned = data.StarterPackOwned == true,
+		Passes = passes,
+		PetMultiplier = Economy.GetPetMultiplier(player),
+		RebirthMultiplier = Economy.GetRebirthMultiplier(player),
+		GlobalMultiplier = Economy.GetGlobalMultiplier(player),
+		RebirthCost = Economy.GetRebirthCost(player),
+		CanSave = services.DataManager.CanSave(player),
+		MaxEquippedPets = Config.MaxEquippedPets,
+	}
+end
+
+-- Envoie l'etat complet au client (UI)
+function Economy.PushSnapshot(player)
+	local snapshot = Economy.BuildSnapshot(player)
+	if snapshot then
+		Remotes.get().ProfileChanged:FireClient(player, snapshot)
+	end
+end
+
+function Economy.Init(registry)
+	services = registry
+
+	-- Le client peut demander son profil complet (ouverture d'UI, respawn...)
+	Remotes.get().GetProfile.OnServerInvoke = function(player)
+		return Economy.BuildSnapshot(player)
+	end
+end
+
+return Economy
+</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX10">
+			<Properties>
+				<string name="Name">LeaderboardService</string>
+				<ProtectedString name="Source">--[[
+	LeaderboardService.lua (ModuleScript - ServerScriptService)
+	Classement global persistant top 10 sur la mana totale gagnee
+	(OrderedDataStore), affiche sur le panneau physique construit par
+	MapBuilder, rafraichi toutes les 60 s.
+	Lua 5.1 pur.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
+local Util = require(ReplicatedStorage:WaitForChild("Util"))
+
+local LeaderboardService = {}
+
+local services = nil
+local orderedStore = nil
+
+-- Cache des pseudos : [userId number] = string
+local nameCache = {}
+
+local ROW_COLORS = {
+	Color3.fromRGB(255, 215, 90),  -- or
+	Color3.fromRGB(200, 200, 210), -- argent
+	Color3.fromRGB(205, 130, 70),  -- bronze
+}
+
+----------------------------------------------------------------
+-- Ecriture des scores
+----------------------------------------------------------------
+
+local function publishScores()
+	for _, player in ipairs(Players:GetPlayers()) do
+		local data = services.DataManager.GetProfile(player)
+		-- On ne publie jamais le score d'une session temporaire
+		if data and services.DataManager.CanSave(player) then
+			local total = math.floor(data.TotalMana)
+			if total &gt; 0 then
+				pcall(function()
+					orderedStore:SetAsync(tostring(player.UserId), total)
+				end)
+			end
+		end
+	end
+end
+
+----------------------------------------------------------------
+-- Lecture + affichage
+----------------------------------------------------------------
+
+local function resolveName(userId)
+	if nameCache[userId] then
+		return nameCache[userId]
+	end
+	-- Joueur en ligne : gratuit
+	local online = Players:GetPlayerByUserId(userId)
+	if online then
+		nameCache[userId] = online.Name
+		return online.Name
+	end
+	local ok, name = pcall(function()
+		return Players:GetNameFromUserIdAsync(userId)
+	end)
+	if ok and name then
+		nameCache[userId] = name
+		return name
+	end
+	return "Sorcier #" .. tostring(userId)
+end
+
+local function renderRows(entries)
+	local rows = services.MapHandles.Leaderboard.Rows
+	-- Purge des anciennes lignes (on garde le UIListLayout)
+	for _, child in ipairs(rows:GetChildren()) do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+
+	for rank = 1, #entries do
+		local entry = entries[rank]
+
+		local row = Instance.new("Frame")
+		row.Name = "Ligne" .. tostring(rank)
+		row.Size = UDim2.new(1, 0, 0, 44)
+		row.BackgroundColor3 = (rank % 2 == 0)
+			and Color3.fromRGB(35, 30, 55)
+			or Color3.fromRGB(45, 38, 70)
+		row.BorderSizePixel = 0
+		row.LayoutOrder = rank
+
+		local rankLabel = Instance.new("TextLabel")
+		rankLabel.Size = UDim2.new(0.14, 0, 1, 0)
+		rankLabel.BackgroundTransparency = 1
+		rankLabel.Font = Enum.Font.FredokaOne
+		rankLabel.TextScaled = true
+		rankLabel.Text = "#" .. tostring(rank)
+		rankLabel.TextColor3 = ROW_COLORS[rank] or Color3.fromRGB(150, 145, 180)
+		rankLabel.Parent = row
+
+		local nameLabel = Instance.new("TextLabel")
+		nameLabel.Position = UDim2.new(0.14, 0, 0, 0)
+		nameLabel.Size = UDim2.new(0.5, 0, 1, 0)
+		nameLabel.BackgroundTransparency = 1
+		nameLabel.Font = Enum.Font.GothamBold
+		nameLabel.TextScaled = true
+		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+		nameLabel.Text = entry.Name
+		nameLabel.TextColor3 = Color3.fromRGB(235, 230, 255)
+		nameLabel.Parent = row
+
+		local scoreLabel = Instance.new("TextLabel")
+		scoreLabel.Position = UDim2.new(0.64, 0, 0, 0)
+		scoreLabel.Size = UDim2.new(0.34, 0, 1, 0)
+		scoreLabel.BackgroundTransparency = 1
+		scoreLabel.Font = Enum.Font.FredokaOne
+		scoreLabel.TextScaled = true
+		scoreLabel.TextXAlignment = Enum.TextXAlignment.Right
+		scoreLabel.Text = Util.formatNumber(entry.Score) .. " mana"
+		scoreLabel.TextColor3 = Color3.fromRGB(140, 220, 255)
+		scoreLabel.Parent = row
+
+		row.Parent = rows
+	end
+end
+
+local function refreshBoard()
+	local ok, pages = pcall(function()
+		return orderedStore:GetSortedAsync(false, Config.Leaderboard.TopN)
+	end)
+	if not ok or not pages then
+		warn("[Leaderboard] Lecture du classement impossible (nouvel essai dans " ..
+			tostring(Config.Leaderboard.RefreshInterval) .. " s).")
+		return
+	end
+
+	local entries = {}
+	local page = pages:GetCurrentPage()
+	for _, item in ipairs(page) do
+		local userId = tonumber(item.key)
+		if userId then
+			table.insert(entries, {
+				Name = resolveName(userId),
+				Score = item.value,
+			})
+		end
+	end
+	renderRows(entries)
+end
+
+----------------------------------------------------------------
+-- Init
+----------------------------------------------------------------
+
+function LeaderboardService.Init(registry)
+	services = registry
+	orderedStore = DataStoreService:GetOrderedDataStore(Config.Data.OrderedStoreName)
+
+	task.spawn(function()
+		task.wait(5) -- laisse les profils se charger au demarrage du serveur
+		while true do
+			publishScores()
+			refreshBoard()
+			task.wait(Config.Leaderboard.RefreshInterval)
+		end
+	end)
+end
+
+return LeaderboardService
+</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="Script" referent="RBX11">
+			<Properties>
+				<string name="Name">Main</string>
+				<ProtectedString name="Source">--[[
+	Main.server.lua (Script - ServerScriptService)
+	Point d'entree serveur unique d'Arcane Legends.
+	Construit la map puis initialise tous les services avec un registre
+	partage : AUCUN module serveur ne require un autre module serveur,
+	ce qui rend toute dependance circulaire impossible.
+	Lua 5.1 pur.
+]]
+
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local DataManager = require(ServerScriptService:WaitForChild("DataManager"))
+local Economy = require(ServerScriptService:WaitForChild("Economy"))
+local MapBuilder = require(ServerScriptService:WaitForChild("MapBuilder"))
+local TrainingService = require(ServerScriptService:WaitForChild("TrainingService"))
+local ZoneService = require(ServerScriptService:WaitForChild("ZoneService"))
+local PetService = require(ServerScriptService:WaitForChild("PetService"))
+local RebirthService = require(ServerScriptService:WaitForChild("RebirthService"))
+local CombatService = require(ServerScriptService:WaitForChild("CombatService"))
+local MonetizationService = require(ServerScriptService:WaitForChild("MonetizationService"))
+local LeaderboardService = require(ServerScriptService:WaitForChild("LeaderboardService"))
+
+-- 1) La map d'abord : les services branchent leurs interactions dessus
+local mapHandles = MapBuilder.Build()
+
+-- 2) Registre partage
+local services = {
+	DataManager = DataManager,
+	Economy = Economy,
+	TrainingService = TrainingService,
+	ZoneService = ZoneService,
+	PetService = PetService,
+	RebirthService = RebirthService,
+	CombatService = CombatService,
+	Monetization = MonetizationService,
+	LeaderboardService = LeaderboardService,
+	MapHandles = mapHandles,
+}
+
+-- 3) Initialisation (le registre est complet avant le premier Init)
+MonetizationService.Init(services)
+Economy.Init(services)
+DataManager.Init(services)
+PetService.Init(services)
+RebirthService.Init(services)
+TrainingService.Init(services)
+ZoneService.Init(services)
+CombatService.Init(services)
+LeaderboardService.Init(services)
+
+print("[Arcane Legends] Serveur initialise : que la magie commence !")
+</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX12">
+			<Properties>
+				<string name="Name">MapBuilder</string>
+				<ProtectedString name="Source">--[[
+	MapBuilder.lua (ModuleScript - ServerScriptService)
+	Construit 100 % de la map par script (aucun asset a importer) :
+	- lobby + spawn
+	- 5 zones avec cristaux neon + totems d'achat (ProximityPrompt)
+	- arene PvP fermee
+	- Sanctuaire VIP flottant + pads de teleportation
+	- panneau physique de classement (SurfaceGui)
+	Retourne une table de "handles" que les autres services branchent.
+	Lua 5.1 pur.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CollectionService = game:GetService("CollectionService")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
+local Util = require(ReplicatedStorage:WaitForChild("Util"))
+
+local MapBuilder = {}
+
+local CRYSTAL_TAG = "ArcaneCrystal"
+
+-- Materiaux d'ambiance par zone (presentation pure, pas d'equilibrage)
+local ZONE_MATERIALS = {
+	[1] = Enum.Material.Grass,
+	[2] = Enum.Material.Grass,
+	[3] = Enum.Material.Slate,
+	[4] = Enum.Material.Basalt,
+	[5] = Enum.Material.Glacier,
+}
+
+----------------------------------------------------------------
+-- Petits constructeurs
+----------------------------------------------------------------
+
+local function newPart(props)
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Material = props.Material or Enum.Material.SmoothPlastic
+	part.Size = props.Size
+	part.CFrame = props.CFrame
+	if props.Color then
+		part.Color = props.Color
+	end
+	if props.Shape then
+		part.Shape = props.Shape
+	end
+	if props.Transparency then
+		part.Transparency = props.Transparency
+	end
+	if props.CanCollide ~= nil then
+		part.CanCollide = props.CanCollide
+	end
+	part.Name = props.Name or "Part"
+	part.Parent = props.Parent
+	return part
+end
+
+local function newBillboard(parent, text, textColor, size, offsetY)
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "Etiquette"
+	billboard.Size = size or UDim2.new(0, 220, 0, 60)
+	billboard.StudsOffset = Vector3.new(0, offsetY or 4, 0)
+	billboard.AlwaysOnTop = false
+	billboard.MaxDistance = 160
+	local label = Instance.new("TextLabel")
+	label.Name = "Texte"
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.FredokaOne
+	label.TextScaled = true
+	label.Text = text
+	label.TextColor3 = textColor or Color3.fromRGB(255, 255, 255)
+	label.TextStrokeTransparency = 0.4
+	label.Parent = billboard
+	billboard.Parent = parent
+	return billboard, label
+end
+
+----------------------------------------------------------------
+-- Elements de jeu
+----------------------------------------------------------------
+
+-- Cristal magique canalisable. zoneId = 1..5, ou 0 pour le Sanctuaire VIP.
+local function buildCrystal(parent, position, zoneId, crystalId, colorRgb)
+	local color = Util.toColor3(colorRgb)
+
+	local crystal = newPart({
+		Name = "Cristal_" .. tostring(zoneId) .. "_" .. tostring(crystalId),
+		Size = Vector3.new(3, 6, 3),
+		CFrame = CFrame.new(position) * CFrame.Angles(math.rad(15), math.rad(crystalId * 40), math.rad(10)),
+		Color = color,
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Parent = parent,
+	})
+	crystal:SetAttribute("ZoneId", zoneId)
+	crystal:SetAttribute("CrystalId", crystalId)
+	CollectionService:AddTag(crystal, CRYSTAL_TAG)
+
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = 14
+	light.Brightness = 1.5
+	light.Parent = crystal
+
+	local sparkle = Instance.new("ParticleEmitter")
+	sparkle.Name = "Etincelles"
+	sparkle.Color = ColorSequence.new(color)
+	sparkle.LightEmission = 1
+	sparkle.Rate = 3
+	sparkle.Lifetime = NumberRange.new(0.8, 1.4)
+	sparkle.Speed = NumberRange.new(1, 2)
+	sparkle.Size = NumberSequence.new(0.35)
+	sparkle.Parent = crystal
+
+	-- Socle en pierre
+	newPart({
+		Name = "Socle",
+		Size = Vector3.new(4.5, 1, 4.5),
+		CFrame = CFrame.new(position.X, position.Y - 3.5, position.Z),
+		Color = Color3.fromRGB(90, 90, 100),
+		Material = Enum.Material.Slate,
+		Parent = parent,
+	})
+
+	-- Interaction : touche E a proximite (le clic/tap est gere par ClickDetector)
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "PromptCanaliser"
+	prompt.ActionText = "Canaliser"
+	prompt.ObjectText = "Cristal magique"
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = Config.Training.ChannelRange
+	prompt.RequiresLineOfSight = false
+	prompt.ClickablePrompt = false -- le clic passe par le ClickDetector
+	prompt.Parent = crystal
+
+	local clicker = Instance.new("ClickDetector")
+	clicker.Name = "ClicCanaliser"
+	clicker.MaxActivationDistance = Config.Training.ChannelRange
+	clicker.Parent = crystal
+
+	return crystal
+end
+
+-- Anneau de cristaux autour d'un centre
+local function buildCrystalRing(parent, centerX, topY, centerZ, count, radius, zoneId, colorRgb)
+	local crystals = {}
+	for i = 1, count do
+		local angle = (i / count) * math.pi * 2
+		local x = centerX + math.cos(angle) * radius
+		local z = centerZ + math.sin(angle) * radius
+		local crystal = buildCrystal(parent, Vector3.new(x, topY + 4, z), zoneId, i, colorRgb)
+		table.insert(crystals, crystal)
+	end
+	return crystals
+end
+
+-- Totem d'achat de zone (ProximityPrompt), place a l'entree de la zone
+local function buildTotem(parent, position, zoneId, zoneDef)
+	local model = Instance.new("Model")
+	model.Name = "Totem_Zone_" .. tostring(zoneId)
+
+	local pillar = newPart({
+		Name = "Pilier",
+		Size = Vector3.new(3, 8, 3),
+		CFrame = CFrame.new(position.X, position.Y + 4, position.Z),
+		Color = Color3.fromRGB(60, 55, 75),
+		Material = Enum.Material.Slate,
+		Parent = model,
+	})
+
+	local orb = newPart({
+		Name = "Orbe",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(3.4, 3.4, 3.4),
+		CFrame = CFrame.new(position.X, position.Y + 10, position.Z),
+		Color = Util.toColor3(zoneDef.CrystalColor),
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Parent = model,
+	})
+	local light = Instance.new("PointLight")
+	light.Color = orb.Color
+	light.Range = 12
+	light.Parent = orb
+
+	newBillboard(orb,
+		zoneDef.Name .. "\n" .. Util.formatNumber(zoneDef.Cost) .. " Mana",
+		Util.toColor3(zoneDef.CrystalColor),
+		UDim2.new(0, 260, 0, 80), 3.5)
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "PromptAchatZone"
+	prompt.ActionText = "Débloquer (" .. Util.formatNumber(zoneDef.Cost) .. " Mana)"
+	prompt.ObjectText = zoneDef.Name
+	prompt.KeyboardKeyCode = Enum.KeyCode.F
+	prompt.HoldDuration = 0.4
+	prompt.MaxActivationDistance = 12
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = pillar
+
+	model:SetAttribute("ZoneId", zoneId)
+	model.Parent = parent
+	return { Model = model, Prompt = prompt, Orb = orb }
+end
+
+-- Pad de teleportation circulaire
+local function buildPad(parent, position, labelText, color, name)
+	local pad = newPart({
+		Name = name,
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1, 8, 8),
+		CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = color,
+		Material = Enum.Material.Neon,
+		Parent = parent,
+	})
+	newBillboard(pad, labelText, color, UDim2.new(0, 220, 0, 50), 5)
+	return pad
+end
+
+----------------------------------------------------------------
+-- Grandes structures
+----------------------------------------------------------------
+
+local function buildLobby(root)
+	local map = Config.Map
+	newPart({
+		Name = "SolLobby",
+		Size = Vector3.new(map.LobbySize.X, 2, map.LobbySize.Z),
+		CFrame = CFrame.new(0, 0, 0),
+		Color = Color3.fromRGB(196, 186, 230),
+		Material = Enum.Material.Marble,
+		Parent = root,
+	})
+
+	local spawn = Instance.new("SpawnLocation")
+	spawn.Name = "SpawnLobby"
+	spawn.Size = Vector3.new(10, 1, 10)
+	spawn.CFrame = CFrame.new(0, 1.5, 20)
+	spawn.Anchored = true
+	spawn.Neutral = true
+	spawn.Duration = 0
+	spawn.Color = Color3.fromRGB(150, 120, 220)
+	spawn.Material = Enum.Material.Neon
+	spawn.TopSurface = Enum.SurfaceType.Smooth
+	spawn.Parent = root
+
+	-- Fontaine centrale decorative
+	local fountain = newPart({
+		Name = "FontaineArcane",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(6, 6, 6),
+		CFrame = CFrame.new(0, 6, -10),
+		Color = Color3.fromRGB(120, 170, 255),
+		Material = Enum.Material.ForceField,
+		CanCollide = false,
+		Parent = root,
+	})
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Color = ColorSequence.new(Color3.fromRGB(150, 190, 255))
+	emitter.LightEmission = 1
+	emitter.Rate = 8
+	emitter.Lifetime = NumberRange.new(1, 2)
+	emitter.Speed = NumberRange.new(2, 4)
+	emitter.Size = NumberSequence.new(0.5)
+	emitter.Parent = fountain
+	newPart({
+		Name = "SocleFontaine",
+		Size = Vector3.new(8, 3, 8),
+		CFrame = CFrame.new(0, 2.5, -10),
+		Color = Color3.fromRGB(160, 150, 200),
+		Material = Enum.Material.Marble,
+		Parent = root,
+	})
+	newBillboard(fountain, "Arcane Legends", Color3.fromRGB(200, 180, 255), UDim2.new(0, 300, 0, 70), 6)
+end
+
+local function buildZones(root)
+	local map = Config.Map
+	local handles = { Totems = {}, ZoneTops = {} }
+	local crystalsFolder = Instance.new("Folder")
+	crystalsFolder.Name = "Cristaux"
+	crystalsFolder.Parent = root
+
+	for zoneId = 1, Config.ZoneCount do
+		local def = Config.Zones[zoneId]
+		local centerX = (zoneId - 3) * map.ZoneSpacing
+		local centerZ = map.ZoneRowZ
+		local topY = 1
+
+		local zoneFolder = Instance.new("Folder")
+		zoneFolder.Name = "Zone_" .. tostring(zoneId)
+		zoneFolder.Parent = root
+
+		newPart({
+			Name = "Sol",
+			Size = Vector3.new(map.ZoneSize.X, 2, map.ZoneSize.Z),
+			CFrame = CFrame.new(centerX, 0, centerZ),
+			Color = Util.toColor3(def.Color),
+			Material = ZONE_MATERIALS[zoneId] or Enum.Material.Grass,
+			Parent = zoneFolder,
+		})
+
+		-- Panneau du nom au centre de la zone
+		local marker = newPart({
+			Name = "Marqueur",
+			Size = Vector3.new(1, 1, 1),
+			CFrame = CFrame.new(centerX, topY + 14, centerZ),
+			Transparency = 1,
+			CanCollide = false,
+			Parent = zoneFolder,
+		})
+		newBillboard(marker, def.Name .. "  (x" .. tostring(def.Multiplier) .. ")",
+			Util.toColor3(def.CrystalColor), UDim2.new(0, 300, 0, 60), 0)
+
+		buildCrystalRing(crystalsFolder, centerX, topY, centerZ,
+			Config.CrystalsPerZone, 28, zoneId, def.CrystalColor)
+
+		-- Totem d'achat a l'entree (cote lobby), sauf pour la zone gratuite
+		if def.Cost &gt; 0 then
+			local totemPos = Vector3.new(centerX, topY, centerZ + map.ZoneSize.Z / 2 - 6)
+			handles.Totems[zoneId] = buildTotem(zoneFolder, totemPos, zoneId, def)
+		end
+
+		handles.ZoneTops[zoneId] = topY
+	end
+
+	handles.CrystalsFolder = crystalsFolder
+	return handles
+end
+
+local function buildArena(root)
+	local map = Config.Map
+	local cx = map.ArenaCenter.X
+	local cz = map.ArenaCenter.Z
+	local sx = map.ArenaSize.X
+	local sz = map.ArenaSize.Z
+
+	local folder = Instance.new("Folder")
+	folder.Name = "Arene"
+	folder.Parent = root
+
+	newPart({
+		Name = "SolArene",
+		Size = Vector3.new(sx, 2, sz),
+		CFrame = CFrame.new(cx, 0, cz),
+		Color = Color3.fromRGB(70, 45, 60),
+		Material = Enum.Material.Cobblestone,
+		Parent = folder,
+	})
+
+	local wallHeight = 12
+	local wallThickness = 2
+	-- Mur nord et mur sud (pleins)
+	newPart({
+		Name = "MurNord",
+		Size = Vector3.new(sx + wallThickness * 2, wallHeight, wallThickness),
+		CFrame = CFrame.new(cx, wallHeight / 2 + 1, cz - sz / 2 - wallThickness / 2),
+		Color = Color3.fromRGB(55, 35, 50), Material = Enum.Material.Slate, Parent = folder,
+	})
+	newPart({
+		Name = "MurSud",
+		Size = Vector3.new(sx + wallThickness * 2, wallHeight, wallThickness),
+		CFrame = CFrame.new(cx, wallHeight / 2 + 1, cz + sz / 2 + wallThickness / 2),
+		Color = Color3.fromRGB(55, 35, 50), Material = Enum.Material.Slate, Parent = folder,
+	})
+	-- Mur est (plein)
+	newPart({
+		Name = "MurEst",
+		Size = Vector3.new(wallThickness, wallHeight, sz),
+		CFrame = CFrame.new(cx + sx / 2 + wallThickness / 2, wallHeight / 2 + 1, cz),
+		Color = Color3.fromRGB(55, 35, 50), Material = Enum.Material.Slate, Parent = folder,
+	})
+	-- Mur ouest avec ouverture centrale de 14 studs (entree cote lobby)
+	local gap = 14
+	local segment = (sz - gap) / 2
+	newPart({
+		Name = "MurOuestA",
+		Size = Vector3.new(wallThickness, wallHeight, segment),
+		CFrame = CFrame.new(cx - sx / 2 - wallThickness / 2, wallHeight / 2 + 1, cz - gap / 2 - segment / 2),
+		Color = Color3.fromRGB(55, 35, 50), Material = Enum.Material.Slate, Parent = folder,
+	})
+	newPart({
+		Name = "MurOuestB",
+		Size = Vector3.new(wallThickness, wallHeight, segment),
+		CFrame = CFrame.new(cx - sx / 2 - wallThickness / 2, wallHeight / 2 + 1, cz + gap / 2 + segment / 2),
+		Color = Color3.fromRGB(55, 35, 50), Material = Enum.Material.Slate, Parent = folder,
+	})
+
+	local sign = newPart({
+		Name = "MarqueurArene",
+		Size = Vector3.new(1, 1, 1),
+		CFrame = CFrame.new(cx, 18, cz),
+		Transparency = 1,
+		CanCollide = false,
+		Parent = folder,
+	})
+	newBillboard(sign, "Arène des Duels\nClique sur un adversaire pour lancer un sort !",
+		Color3.fromRGB(255, 100, 120), UDim2.new(0, 320, 0, 80), 0)
+
+	return { CenterX = cx, CenterZ = cz, SizeX = sx, SizeZ = sz }
+end
+
+local function buildVIP(root)
+	local map = Config.Map
+	local cx = map.VIPCenter.X
+	local cz = map.VIPCenter.Z
+	local topY = map.VIPHeight + 1
+
+	local folder = Instance.new("Folder")
+	folder.Name = "SanctuaireVIP"
+	folder.Parent = root
+
+	newPart({
+		Name = "IleVIP",
+		Size = Vector3.new(map.VIPSize.X, 2, map.VIPSize.Z),
+		CFrame = CFrame.new(cx, map.VIPHeight, cz),
+		Color = Util.toColor3(Config.VIPZone.Color),
+		Material = Enum.Material.Marble,
+		Parent = folder,
+	})
+	-- Bordure lumineuse
+	newPart({
+		Name = "BordureVIP",
+		Size = Vector3.new(map.VIPSize.X + 2, 1, map.VIPSize.Z + 2),
+		CFrame = CFrame.new(cx, map.VIPHeight - 1, cz),
+		Color = Color3.fromRGB(255, 220, 120),
+		Material = Enum.Material.Neon,
+		Parent = folder,
+	})
+
+	local marker = newPart({
+		Name = "MarqueurVIP",
+		Size = Vector3.new(1, 1, 1),
+		CFrame = CFrame.new(cx, topY + 16, cz),
+		Transparency = 1,
+		CanCollide = false,
+		Parent = folder,
+	})
+	newBillboard(marker, Config.VIPZone.Name .. "  (x" .. tostring(Config.VIPZone.Multiplier) .. ")",
+		Util.toColor3(Config.VIPZone.CrystalColor), UDim2.new(0, 300, 0, 60), 0)
+
+	-- Cristaux VIP (zoneId 0)
+	local crystalsFolder = root:FindFirstChild("Cristaux")
+	buildCrystalRing(crystalsFolder or folder, cx, topY, cz,
+		Config.VIPZone.CrystalCount, 22, 0, Config.VIPZone.CrystalColor)
+
+	-- Pads de teleportation
+	local padTo = buildPad(root, Vector3.new(45, 1.5, 45),
+		"Sanctuaire VIP", Color3.fromRGB(255, 210, 90), "PadVersVIP")
+	local padBack = buildPad(folder, Vector3.new(cx, topY + 0.5, cz + map.VIPSize.Z / 2 - 8),
+		"Retour au lobby", Color3.fromRGB(180, 160, 255), "PadRetourLobby")
+
+	return { PadTo = padTo, PadBack = padBack, TopY = topY, CenterX = cx, CenterZ = cz }
+end
+
+local function buildLeaderboardBoard(root)
+	local map = Config.Map
+	local pos = Vector3.new(map.LeaderboardPos.X, 9, map.LeaderboardPos.Z)
+
+	local board = newPart({
+		Name = "PanneauClassement",
+		Size = Vector3.new(18, 14, 1.5),
+		CFrame = CFrame.new(pos),
+		Color = Color3.fromRGB(35, 30, 55),
+		Material = Enum.Material.Slate,
+		Parent = root,
+	})
+	newPart({
+		Name = "PiedPanneau",
+		Size = Vector3.new(18, 2, 4),
+		CFrame = CFrame.new(pos.X, 1.5, pos.Z),
+		Color = Color3.fromRGB(60, 50, 90),
+		Material = Enum.Material.Slate,
+		Parent = root,
+	})
+
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "GuiClassement"
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 40
+	gui.Parent = board
+
+	local title = Instance.new("TextLabel")
+	title.Name = "Titre"
+	title.Size = UDim2.new(1, 0, 0.14, 0)
+	title.BackgroundColor3 = Color3.fromRGB(90, 70, 160)
+	title.BorderSizePixel = 0
+	title.Font = Enum.Font.FredokaOne
+	title.TextScaled = true
+	title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	title.Text = "Top 10 — Mana totale"
+	title.Parent = gui
+
+	local rows = Instance.new("Frame")
+	rows.Name = "Lignes"
+	rows.Position = UDim2.new(0, 0, 0.14, 0)
+	rows.Size = UDim2.new(1, 0, 0.86, 0)
+	rows.BackgroundColor3 = Color3.fromRGB(25, 22, 40)
+	rows.BorderSizePixel = 0
+	rows.Parent = gui
+
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Vertical
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0, 2)
+	layout.Parent = rows
+
+	-- La face avant (-Z) du panneau regarde deja vers le lobby (z &lt; 48)
+	return { Board = board, Gui = gui, Rows = rows }
+end
+
+local function setupLighting()
+	Lighting.ClockTime = 17.5
+	Lighting.Brightness = 2
+	Lighting.Ambient = Color3.fromRGB(90, 85, 120)
+	Lighting.OutdoorAmbient = Color3.fromRGB(120, 110, 150)
+	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+	if not atmosphere then
+		atmosphere = Instance.new("Atmosphere")
+		atmosphere.Parent = Lighting
+	end
+	atmosphere.Density = 0.35
+	atmosphere.Color = Color3.fromRGB(180, 170, 220)
+	atmosphere.Haze = 1.5
+end
+
+----------------------------------------------------------------
+-- API
+----------------------------------------------------------------
+
+MapBuilder.CrystalTag = CRYSTAL_TAG
+
+function MapBuilder.Build()
+	local root = Instance.new("Folder")
+	root.Name = "ArcaneMap"
+
+	-- Grand sol de base sous tout le monde exterieur
+	newPart({
+		Name = "SolMonde",
+		Size = Vector3.new(760, 4, 640),
+		CFrame = CFrame.new(0, -2.5, -60),
+		Color = Color3.fromRGB(88, 118, 92),
+		Material = Enum.Material.Grass,
+		Parent = root,
+	})
+
+	buildLobby(root)
+	local zoneHandles = buildZones(root)
+	local arenaRegion = buildArena(root)
+	local vipHandles = buildVIP(root)
+	local boardHandles = buildLeaderboardBoard(root)
+	setupLighting()
+
+	root.Parent = Workspace
+
+	return {
+		Root = root,
+		CrystalsFolder = zoneHandles.CrystalsFolder,
+		Totems = zoneHandles.Totems,
+		Arena = arenaRegion,
+		VIP = vipHandles,
+		Leaderboard = boardHandles,
+	}
+end
+
+return MapBuilder
+</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX13">
+			<Properties>
+				<string name="Name">MonetizationService</string>
+				<ProtectedString name="Source">--[[
+	MonetizationService.lua (ModuleScript - ServerScriptService)
+	Gamepasses (cache + rafraichissement a l'achat en jeu) et developer
+	products avec ProcessReceipt IDEMPOTENT (historique des PurchaseId
+	dans le profil : aucun double-credit possible).
+	Tous les IDs sont dans Config (0 = TODO_UTILISATEUR, a creer sur
+	create.roblox.com puis a renseigner dans Config.lua).
+	Lua 5.1 pur.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MarketplaceService = game:GetService("MarketplaceService")
+local Players = game:GetService("Players")
+
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
+local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
+
+local MonetizationService = {}
+
+local services = nil
+
+-- Cache de possession des gamepasses : [player] = { passKey = bool }
+local passCache = {}
+
+----------------------------------------------------------------
+-- Gamepasses
+----------------------------------------------------------------
+
+local function findPassKeyById(passId)
+	for passKey, def in pairs(Config.GamePasses) do
+		if def.Id == passId then
+			return passKey
+		end
+	end
+	return nil
+end
+
+-- Possession d'un gamepass (depuis le cache ; un ID a 0 = jamais possede)
+function MonetizationService.OwnsPass(player, passKey)
+	local cache = passCache[player]
+	return cache ~= nil and cache[passKey] == true
+end
+
+-- Interroge Roblox pour un pass donne et met le cache a jour
+local function queryPass(player, passKey)
+	local def = Config.GamePasses[passKey]
+	if not def or def.Id == 0 then
+		return false -- TODO_UTILISATEUR : ID non configure
+	end
+	local ok, owns = pcall(function()
+		return MarketplaceService:UserOwnsGamePassAsync(player.UserId, def.Id)
+	end)
+	if ok and passCache[player] then
+		passCache[player][passKey] = owns == true
+	end
+	return ok and owns == true
+end
+
+-- Effets immediats a l'obtention d'un pass (achat en jeu ou detection au login)
+local function applyPassEffects(player, passKey)
+	if passKey == "VoidLord" then
+		local data = services.DataManager.GetProfile(player)
+		if data and not data.VoidLordGranted then
+			data.VoidLordGranted = true
+			services.PetService.GrantPet(player, "seigneurvide", true)
+			Remotes.get().Notify:FireClient(player,
+				"Le Seigneur du Vide (x3.5) a rejoint tes familiers !", "succes")
+		end
+	end
+	services.Economy.PushSnapshot(player)
+end
+
+local function preloadPasses(player)
+	passCache[player] = {}
+	for passKey, _ in pairs(Config.GamePasses) do
+		task.spawn(function()
+			if queryPass(player, passKey) then
+				applyPassEffects(player, passKey)
+			end
+		end)
+	end
+end
+
+----------------------------------------------------------------
+-- Developer products (ProcessReceipt idempotent)
+----------------------------------------------------------------
+
+local function findProductKeyById(productId)
+	for productKey, def in pairs(Config.Products) do
+		if def.Id == productId then
+			return productKey
+		end
+	end
+	return nil
+end
+
+local function grantProduct(player, productKey)
+	local def = Config.Products[productKey]
+	local data = services.DataManager.GetProfile(player)
+	if not def or not data then
+		return false
+	end
+
+	if productKey == "StarterPack" then
+		if data.StarterPackOwned then
+			-- Achat duplique d'un pack UNIQUE (ne devrait pas arriver : l'UI le
+			-- masque une fois possede). On credite mana + gemmes pour ne pas
+			-- leser l'acheteur, mais pas de second familier exclusif.
+			services.Economy.AddMana(player, def.Mana)
+			services.Economy.AddGems(player, def.Gems, false)
+		else
+			data.StarterPackOwned = true
+			services.Economy.AddMana(player, def.Mana)
+			services.Economy.AddGems(player, def.Gems, false)
+			services.PetService.GrantPet(player, def.Pet, true)
+		end
+		Remotes.get().Notify:FireClient(player, "Pack de Départ reçu : merci pour ton soutien !", "succes")
+		return true
+	end
+
+	if def.Gems then
+		services.Economy.AddGems(player, def.Gems, false)
+		Remotes.get().Notify:FireClient(player,
+			"+" .. tostring(def.Gems) .. " gemmes ! Merci pour ton soutien !", "gemme")
+		return true
+	end
+
+	return false
+end
+
+local function processReceipt(receiptInfo)
+	local player = Players:GetPlayerByUserId(receiptInfo.PlayerId)
+	if not player then
+		-- Joueur deconnecte : Roblox re-essaiera a sa prochaine connexion
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	local data = services.DataManager.GetProfile(player)
+	if not data then
+		return Enum.ProductPurchaseDecision.NotProcessedYet -- profil pas charge
+	end
+	if not services.DataManager.CanSave(player) then
+		-- Session temporaire : on ne consomme JAMAIS un achat qu'on ne peut
+		-- pas persister (sinon credit perdu a la deconnexion).
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	-- IDEMPOTENCE : cle STRING du PurchaseId dans le profil
+	local purchaseKey = tostring(receiptInfo.PurchaseId)
+	if data.Purchases[purchaseKey] then
+		return Enum.ProductPurchaseDecision.PurchaseGranted -- deja credite
+	end
+
+	local productKey = findProductKeyById(receiptInfo.ProductId)
+	if not productKey then
+		warn("[Monetization] ProductId inconnu : " .. tostring(receiptInfo.ProductId))
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	local granted = grantProduct(player, productKey)
+	if not granted then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	data.Purchases[purchaseKey] = true
+	-- Sauvegarde immediate (best effort) : si elle echoue, l'autosave et la
+	-- save de deconnexion prendront le relais ; l'historique en memoire
+	-- garantit deja l'absence de double-credit pendant la session.
+	task.spawn(function()
+		services.DataManager.SaveProfile(player)
+	end)
+	return Enum.ProductPurchaseDecision.PurchaseGranted
+end
+
+----------------------------------------------------------------
+-- Init
+----------------------------------------------------------------
+
+function MonetizationService.Init(registry)
+	services = registry
+
+	Players.PlayerAdded:Connect(preloadPasses)
+	for _, player in ipairs(Players:GetPlayers()) do
+		preloadPasses(player)
+	end
+	Players.PlayerRemoving:Connect(function(player)
+		passCache[player] = nil
+	end)
+
+	-- Rafraichissement du cache quand un gamepass est achete EN JEU
+	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
+		if not purchased then
+			return
+		end
+		local passKey = findPassKeyById(passId)
+		if passKey and passCache[player] then
+			passCache[player][passKey] = true
+			applyPassEffects(player, passKey)
+			Remotes.get().Notify:FireClient(player,
+				"Gamepass « " .. Config.GamePasses[passKey].Name .. " » activé. Merci !", "succes")
+		end
+	end)
+
+	MarketplaceService.ProcessReceipt = processReceipt
+end
+
+return MonetizationService
+</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX14">
+			<Properties>
+				<string name="Name">PetService</string>
+				<ProtectedString name="Source">--[[
+	PetService.lua (ModuleScript - ServerScriptService)
+	Familiers : achat d'oeufs en gemmes (tirage pondere COTE SERVEUR),
+	inventaire, equipement (3 max), visuels attaches au personnage.
+	Multiplicateur total calcule dans Economy : 1 + somme des (mult - 1).
+	Lua 5.1 pur.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
+local Util = require(ReplicatedStorage:WaitForChild("Util"))
+local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
+
+local PetService = {}
+
+local services = nil
+local rng = Random.new()
+
+-- Decalages des 3 emplacements de familiers autour du joueur
+local SLOT_OFFSETS = {
+	CFrame.new(-2.4, 1.5, 1.6),
+	CFrame.new(2.4, 1.5, 1.6),
+	CFrame.new(0, 2.2, 2.6),
+}
+
+----------------------------------------------------------------
+-- Visuels des familiers equipes
+----------------------------------------------------------------
+
+local function clearPetVisuals(character)
+	local existing = character:FindFirstChild("FamiliersVisuels")
+	if existing then
+		existing:Destroy()
+	end
+end
+
+-- Reconstruit les orbes-familiers attaches au personnage
+function PetService.RefreshPetVisuals(player)
+	local character = player.Character
+	if not character then
+		return
+	end
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	if not rootPart then
+		return
+	end
+	clearPetVisuals(character)
+
+	local data = services.DataManager.GetProfile(player)
+	if not data then
+		return
+	end
+
+	local folder = Instance.new("Folder")
+	folder.Name = "FamiliersVisuels"
+
+	local slot = 0
+	for _, pet in pairs(data.Pets) do
+		if pet.Equipped and slot &lt; Config.MaxEquippedPets then
+			local def = Config.Pets[pet.Id]
+			if def then
+				slot = slot + 1
+				local rarity = Config.Rarities[def.Rarity]
+				local color = rarity and Util.toColor3(rarity.Color) or Color3.fromRGB(255, 255, 255)
+
+				local orb = Instance.new("Part")
+				orb.Name = "Familier_" .. pet.Id
+				orb.Shape = Enum.PartType.Ball
+				orb.Size = Vector3.new(1.6, 1.6, 1.6)
+				orb.Color = color
+				orb.Material = Enum.Material.Neon
+				orb.CanCollide = false
+				orb.Massless = true
+				orb.CFrame = rootPart.CFrame * SLOT_OFFSETS[slot]
+
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0 = rootPart
+				weld.Part1 = orb
+				weld.Parent = orb
+
+				local emitter = Instance.new("ParticleEmitter")
+				emitter.Color = ColorSequence.new(color)
+				emitter.LightEmission = 1
+				emitter.Rate = 2
+				emitter.Lifetime = NumberRange.new(0.5, 1)
+				emitter.Speed = NumberRange.new(0.5, 1)
+				emitter.Size = NumberSequence.new(0.2)
+				emitter.Parent = orb
+
+				local billboard = Instance.new("BillboardGui")
+				billboard.Size = UDim2.new(0, 120, 0, 30)
+				billboard.StudsOffset = Vector3.new(0, 1.4, 0)
+				billboard.MaxDistance = 60
+				local label = Instance.new("TextLabel")
+				label.Size = UDim2.new(1, 0, 1, 0)
+				label.BackgroundTransparency = 1
+				label.Font = Enum.Font.FredokaOne
+				label.TextScaled = true
+				label.Text = def.Name
+				label.TextColor3 = color
+				label.TextStrokeTransparency = 0.5
+				label.Parent = billboard
+				billboard.Parent = orb
+
+				orb.Parent = folder
+			end
+		end
+	end
+
+	folder.Parent = character
+end
+
+----------------------------------------------------------------
+-- Inventaire
+----------------------------------------------------------------
+
+-- Ajoute un familier au profil. Retourne uid, ou nil si profil absent.
+function PetService.GrantPet(player, petId, equipIfSpace)
+	local data = services.DataManager.GetProfile(player)
+	if not data or not Config.Pets[petId] then
+		return nil
+	end
+	data.PetCounter = data.PetCounter + 1
+	local uid = tostring(data.PetCounter) -- cle STRING (contrainte JSON DataStore)
+
+	local equipped = false
+	if equipIfSpace then
+		local equippedCount = 0
+		for _, pet in pairs(data.Pets) do
+			if pet.Equipped then
+				equippedCount = equippedCount + 1
+			end
+		end
+		equipped = equippedCount &lt; Config.MaxEquippedPets
+	end
+
+	data.Pets[uid] = { Id = petId, Equipped = equipped }
+	services.Economy.PushSnapshot(player)
+	if equipped then
+		PetService.RefreshPetVisuals(player)
+	end
+	return uid
+end
+
+local function buyEgg(player, eggIndex)
+	local data = services.DataManager.GetProfile(player)
+	if not data then
+		return false, "Profil en cours de chargement..."
+	end
+	if type(eggIndex) ~= "number" then
+		return false, "Requête invalide."
+	end
+	local egg = Config.Eggs[eggIndex]
+	if not egg then
+		return false, "Cet œuf n'existe pas."
+	end
+	if not services.Economy.SpendGems(player, egg.Cost) then
+		return false, "Pas assez de gemmes (" .. Util.formatNumber(egg.Cost) .. " nécessaires)."
+	end
+
+	-- Tirage pondere COTE SERVEUR (le client ne fait que demander)
+	local petId = Util.weightedRoll(egg.Pool, rng)
+	if not petId then
+		-- Pool mal configure : rembourse par securite
+		services.Economy.AddGems(player, egg.Cost, false)
+		return false, "Erreur de tirage, gemmes remboursées."
+	end
+
+	local uid = PetService.GrantPet(player, petId, true)
+	local def = Config.Pets[petId]
+	return true, {
+		Uid = uid,
+		Id = petId,
+		Name = def.Name,
+		Rarity = def.Rarity,
+		Multiplier = def.Multiplier,
+	}
+end
+
+local function setPetEquipped(player, petUid, equipped)
+	local data = services.DataManager.GetProfile(player)
+	if not data then
+		return false, "Profil en cours de chargement..."
+	end
+	if type(petUid) ~= "string" then
+		return false, "Requête invalide."
+	end
+	local pet = data.Pets[petUid]
+	if not pet then
+		return false, "Familier introuvable."
+	end
+	equipped = equipped == true
+
+	if equipped and not pet.Equipped then
+		local equippedCount = 0
+		for _, other in pairs(data.Pets) do
+			if other.Equipped then
+				equippedCount = equippedCount + 1
+			end
+		end
+		if equippedCount &gt;= Config.MaxEquippedPets then
+			return false, "Maximum " .. tostring(Config.MaxEquippedPets) .. " familiers équipés."
+		end
+	end
+
+	pet.Equipped = equipped
+	services.Economy.PushSnapshot(player)
+	PetService.RefreshPetVisuals(player)
+	return true, equipped and "Familier équipé !" or "Familier retiré."
+end
+
+----------------------------------------------------------------
+-- Init
+----------------------------------------------------------------
+
+function PetService.Init(registry)
+	services = registry
+
+	Remotes.get().BuyEgg.OnServerInvoke = buyEgg
+	Remotes.get().SetPetEquipped.OnServerInvoke = setPetEquipped
+
+	-- Reattache les visuels a chaque respawn
+	Players.PlayerAdded:Connect(function(player)
+		player.CharacterAdded:Connect(function()
+			task.wait(0.3) -- laisse le personnage s'assembler
+			PetService.RefreshPetVisuals(player)
+		end)
+	end)
+	for _, player in ipairs(Players:GetPlayers()) do
+		player.CharacterAdded:Connect(function()
+			task.wait(0.3)
+			PetService.RefreshPetVisuals(player)
+		end)
+		if player.Character then
+			PetService.RefreshPetVisuals(player)
+		end
+	end
+end
+
+return PetService
+</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX15">
+			<Properties>
+				<string name="Name">RebirthService</string>
+				<ProtectedString name="Source">--[[
+	RebirthService.lua (ModuleScript - ServerScriptService)
+	Ascensions (rebirth) : sacrifier TOUTE sa mana pour un bonus permanent
+	de +50 % par ascension. Cout = 10 000 x 4^n. Auras de particules
+	aux paliers 1 / 3 / 6 / 10.
+	Lua 5.1 pur.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
+local Util = require(ReplicatedStorage:WaitForChild("Util"))
+local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
+
+local RebirthService = {}
+
+local services = nil
+
+-- Style d'aura par palier (index = rang du palier atteint)
+local AURA_STYLES = {
+	{ Color = Color3.fromRGB(140, 200, 255), Rate = 8,  Size = 0.35, Speed = 2 },  -- palier 1 : brume bleutee
+	{ Color = Color3.fromRGB(190, 120, 255), Rate = 14, Size = 0.5,  Speed = 3 },  -- palier 3 : volutes violettes
+	{ Color = Color3.fromRGB(255, 200, 90),  Rate = 22, Size = 0.65, Speed = 4 },  -- palier 6 : flammes dorees
+	{ Color = Color3.fromRGB(255, 90, 120),  Rate = 32, Size = 0.8,  Speed = 5 },  -- palier 10 : tempete ecarlate
+}
+
+----------------------------------------------------------------
+-- Auras
+----------------------------------------------------------------
+
+-- Rang du palier atteint (0 = aucun) pour un nombre d'ascensions donne
+local function auraTierRank(rebirths)
+	local rank = 0
+	for i = 1, #Config.Rebirth.AuraTiers do
+		if rebirths &gt;= Config.Rebirth.AuraTiers[i] then
+			rank = i
+		end
+	end
+	return rank
+end
+
+-- (Re)applique l'aura du joueur sur son personnage
+function RebirthService.ApplyAura(player)
+	local character = player.Character
+	if not character then
+		return
+	end
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	if not rootPart then
+		return
+	end
+
+	local existing = rootPart:FindFirstChild("AuraAscension")
+	if existing then
+		existing:Destroy()
+	end
+
+	local data = services.DataManager.GetProfile(player)
+	if not data then
+		return
+	end
+	local rank = auraTierRank(data.Rebirths)
+	if rank == 0 then
+		return
+	end
+	local style = AURA_STYLES[rank] or AURA_STYLES[#AURA_STYLES]
+
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = "AuraAscension"
+	emitter.Color = ColorSequence.new(style.Color)
+	emitter.LightEmission = 1
+	emitter.Rate = style.Rate
+	emitter.Lifetime = NumberRange.new(0.8, 1.6)
+	emitter.Speed = NumberRange.new(style.Speed * 0.5, style.Speed)
+	emitter.Size = NumberSequence.new(style.Size)
+	emitter.SpreadAngle = Vector2.new(180, 180)
+	emitter.Parent = rootPart
+end
+
+----------------------------------------------------------------
+-- Ascension
+----------------------------------------------------------------
+
+local function doRebirth(player)
+	local data = services.DataManager.GetProfile(player)
+	if not data then
+		return false, "Profil en cours de chargement..."
+	end
+	local cost = services.Economy.GetRebirthCost(player)
+	if data.Mana &lt; cost then
+		return false, "Il te faut " .. Util.formatNumber(cost) .. " mana pour t'élever."
+	end
+
+	-- Sacrifice de TOUTE la mana (pas seulement le cout)
+	data.Mana = 0
+	data.Rebirths = data.Rebirths + 1
+
+	services.DataManager.UpdateLeaderstats(player)
+	services.Economy.PushSnapshot(player)
+	RebirthService.ApplyAura(player)
+
+	local bonus = math.floor(Config.Rebirth.BonusPerRebirth * data.Rebirths * 100)
+	Remotes.get().Notify:FireClient(player,
+		"Ascension " .. tostring(data.Rebirths) .. " accomplie ! Bonus permanent : +" .. tostring(bonus) .. " % de mana.", "succes")
+	return true, "Ascension réussie !"
+end
+
+----------------------------------------------------------------
+-- Init
+----------------------------------------------------------------
+
+function RebirthService.Init(registry)
+	services = registry
+
+	Remotes.get().DoRebirth.OnServerInvoke = doRebirth
+
+	Players.PlayerAdded:Connect(function(player)
+		player.CharacterAdded:Connect(function()
+			task.wait(0.3)
+			RebirthService.ApplyAura(player)
+		end)
+	end)
+	for _, player in ipairs(Players:GetPlayers()) do
+		player.CharacterAdded:Connect(function()
+			task.wait(0.3)
+			RebirthService.ApplyAura(player)
+		end)
+		if player.Character then
+			RebirthService.ApplyAura(player)
+		end
+	end
+end
+
+return RebirthService
+</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX16">
+			<Properties>
+				<string name="Name">TrainingService</string>
+				<ProtectedString name="Source">--[[
+	TrainingService.lua (ModuleScript - ServerScriptService)
+	Canalisation des cristaux (clic / tap / touche E) + auto-canalisation (gamepass).
+	100 % valide serveur : distance, cooldown, zone possedee, acces VIP.
+	Lua 5.1 pur.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
+local Util = require(ReplicatedStorage:WaitForChild("Util"))
+local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
+
+local TrainingService = {}
+
+local services = nil
+local rng = Random.new()
+
+-- [player] = horodatage de la derniere canalisation (os.clock)
+local lastChannel = {}
+-- [player] = horodatage de la derniere notif "zone verrouillee" (anti-spam)
+local lastLockedNotify = {}
+local crystals = {} -- liste des cristaux construits par MapBuilder
+
+----------------------------------------------------------------
+-- Canalisation
+----------------------------------------------------------------
+
+-- Verifie que le joueur a le droit de canaliser ce cristal. Retourne ok, zoneMultiplier.
+local function validateChannel(player, crystal)
+	if not crystal or not crystal.Parent then
+		return false
+	end
+	local data = services.DataManager.GetProfile(player)
+	if not data then
+		return false -- profil pas encore charge
+	end
+
+	local rootPart = Util.getRootPart(player)
+	if not rootPart then
+		return false
+	end
+
+	-- Distance validee serveur (anti-triche)
+	local distance = (rootPart.Position - crystal.Position).Magnitude
+	if distance &gt; Config.Training.ChannelRange + 6 then -- +6 : tolerance latence/taille perso
+		return false
+	end
+
+	-- Cooldown serveur
+	local now = os.clock()
+	local last = lastChannel[player]
+	if last and (now - last) &lt; Config.Training.ChannelCooldown then
+		return false
+	end
+
+	local zoneId = crystal:GetAttribute("ZoneId")
+	if zoneId == 0 then
+		-- Sanctuaire VIP : reserve au gamepass
+		if not services.Monetization.OwnsPass(player, "VIPZone") then
+			return false
+		end
+		return true, Config.VIPZone.Multiplier
+	end
+
+	local zoneDef = Config.Zones[zoneId]
+	if not zoneDef then
+		return false
+	end
+	-- Zone physiquement ouverte mais gain verrouille tant que non achetee
+	if not data.Zones[tostring(zoneId)] then
+		if not lastLockedNotify[player] or (now - lastLockedNotify[player]) &gt; 2 then
+			lastLockedNotify[player] = now
+			Remotes.get().Notify:FireClient(player,
+				"Zone verrouillée ! Débloque « " .. zoneDef.Name .. " » à son totem d'entrée.", "erreur")
+		end
+		return false
+	end
+	return true, zoneDef.Multiplier
+end
+
+-- Effectue une canalisation si valide. Retourne true si le gain a eu lieu.
+function TrainingService.Channel(player, crystal)
+	local ok, zoneMultiplier = validateChannel(player, crystal)
+	if not ok then
+		return false
+	end
+
+	lastChannel[player] = os.clock()
+
+	local gain = Config.Training.BaseManaPerChannel
+		* zoneMultiplier
+		* services.Economy.GetGlobalMultiplier(player)
+	gain = math.floor(gain + 0.5)
+	if gain &lt; 1 then
+		gain = 1
+	end
+	services.Economy.AddMana(player, gain)
+
+	-- 5 % de chance de gemmes (1 a 3)
+	local gems = 0
+	if rng:NextNumber() &lt; Config.Training.GemChance then
+		gems = rng:NextInteger(Config.Training.GemMin, Config.Training.GemMax)
+		gems = services.Economy.AddGems(player, gems, true) or gems
+	end
+
+	-- Retour visuel au client (texte flottant au-dessus du cristal)
+	Remotes.get().ChannelResult:FireClient(player, crystal.Position, gain, gems)
+	return true
+end
+
+----------------------------------------------------------------
+-- Auto-canalisation (gamepass Auto-Canalisation)
+----------------------------------------------------------------
+
+local function findNearestCrystal(rootPart)
+	local best = nil
+	local bestDistance = Config.Training.ChannelRange
+	for i = 1, #crystals do
+		local crystal = crystals[i]
+		if crystal.Parent then
+			local distance = (rootPart.Position - crystal.Position).Magnitude
+			if distance &lt;= bestDistance then
+				bestDistance = distance
+				best = crystal
+			end
+		end
+	end
+	return best
+end
+
+local function autoLoop()
+	while true do
+		task.wait(Config.Training.AutoInterval)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local data = services.DataManager.GetProfile(player)
+			if data and data.AutoTrain and services.Monetization.OwnsPass(player, "AutoTrain") then
+				local rootPart = Util.getRootPart(player)
+				if rootPart then
+					local crystal = findNearestCrystal(rootPart)
+					if crystal then
+						TrainingService.Channel(player, crystal)
+					end
+				end
+			end
+		end
+	end
+end
+
+----------------------------------------------------------------
+-- Init
+----------------------------------------------------------------
+
+function TrainingService.Init(registry)
+	services = registry
+
+	-- Branche tous les cristaux construits par MapBuilder
+	local folder = services.MapHandles.CrystalsFolder
+	for _, crystal in ipairs(folder:GetChildren()) do
+		if crystal:GetAttribute("CrystalId") then
+			table.insert(crystals, crystal)
+			local prompt = crystal:FindFirstChild("PromptCanaliser")
+			if prompt then
+				prompt.Triggered:Connect(function(player)
+					TrainingService.Channel(player, crystal)
+				end)
+			end
+			local clicker = crystal:FindFirstChild("ClicCanaliser")
+			if clicker then
+				clicker.MouseClick:Connect(function(player)
+					TrainingService.Channel(player, crystal)
+				end)
+			end
+		end
+	end
+
+	-- Toggle de l'auto-canalisation demande par le client
+	Remotes.get().ToggleAuto.OnServerEvent:Connect(function(player, enabled)
+		local data = services.DataManager.GetProfile(player)
+		if not data then
+			return
+		end
+		if not services.Monetization.OwnsPass(player, "AutoTrain") then
+			Remotes.get().Notify:FireClient(player,
+				"L'auto-canalisation nécessite le gamepass « Auto-Canalisation ».", "erreur")
+			return
+		end
+		data.AutoTrain = enabled == true
+		services.Economy.PushSnapshot(player)
+	end)
+
+	-- Nettoyage des cooldowns
+	Players.PlayerRemoving:Connect(function(player)
+		lastChannel[player] = nil
+		lastLockedNotify[player] = nil
+	end)
+
+	task.spawn(autoLoop)
+end
+
+return TrainingService
+</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX17">
+			<Properties>
+				<string name="Name">ZoneService</string>
+				<ProtectedString name="Source">--[[
+	ZoneService.lua (ModuleScript - ServerScriptService)
+	Achat des zones aux totems (ProximityPrompt) + pads de teleportation VIP.
+	Les zones sont physiquement ouvertes mais le GAIN est verrouille serveur
+	tant que la zone n'est pas achetee (verifie dans TrainingService).
+	Lua 5.1 pur.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MarketplaceService = game:GetService("MarketplaceService")
+local Players = game:GetService("Players")
+
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
+local Util = require(ReplicatedStorage:WaitForChild("Util"))
+local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
+
+local ZoneService = {}
+
+local services = nil
+
+-- anti-rebond des pads de teleportation : [player] = os.clock()
+local lastTeleport = {}
+
+----------------------------------------------------------------
+-- Achat de zone
+----------------------------------------------------------------
+
+local function tryBuyZone(player, zoneId)
+	local data = services.DataManager.GetProfile(player)
+	if not data then
+		return
+	end
+	local zoneDef = Config.Zones[zoneId]
+	if not zoneDef then
+		return
+	end
+	local key = tostring(zoneId)
+	if data.Zones[key] then
+		Remotes.get().Notify:FireClient(player,
+			"« " .. zoneDef.Name .. " » est déjà débloquée !", "info")
+		return
+	end
+	-- Progression lineaire : il faut posseder la zone precedente
+	if zoneId &gt; 1 and not data.Zones[tostring(zoneId - 1)] then
+		Remotes.get().Notify:FireClient(player,
+			"Débloque d'abord « " .. Config.Zones[zoneId - 1].Name .. " » !", "erreur")
+		return
+	end
+	if not services.Economy.SpendMana(player, zoneDef.Cost) then
+		Remotes.get().Notify:FireClient(player,
+			"Pas assez de mana ! Il te faut " .. Util.formatNumber(zoneDef.Cost) .. " mana.", "erreur")
+		return
+	end
+	data.Zones[key] = true
+	services.Economy.PushSnapshot(player)
+	Remotes.get().Notify:FireClient(player,
+		"Zone débloquée : « " .. zoneDef.Name .. " » (mana x" .. tostring(zoneDef.Multiplier) .. ") !", "succes")
+end
+
+----------------------------------------------------------------
+-- Teleportation VIP
+----------------------------------------------------------------
+
+local function teleportTo(player, position)
+	local rootPart = Util.getRootPart(player)
+	if rootPart then
+		rootPart.CFrame = CFrame.new(position + Vector3.new(0, 4, 0))
+	end
+end
+
+local function onPadTouched(hit, targetPositionGetter, requiresVIP)
+	local character = hit and hit.Parent
+	if not character then
+		return
+	end
+	local player = Players:GetPlayerFromCharacter(character)
+	if not player then
+		return
+	end
+	local now = os.clock()
+	if lastTeleport[player] and (now - lastTeleport[player]) &lt; 1.5 then
+		return
+	end
+	lastTeleport[player] = now
+
+	if requiresVIP and not services.Monetization.OwnsPass(player, "VIPZone") then
+		Remotes.get().Notify:FireClient(player,
+			"Le Sanctuaire VIP est réservé aux détenteurs du gamepass « Sanctuaire VIP ».", "erreur")
+		local passId = Config.GamePasses.VIPZone.Id
+		if passId and passId &gt; 0 then
+			pcall(function()
+				MarketplaceService:PromptGamePassPurchase(player, passId)
+			end)
+		end
+		return
+	end
+	teleportTo(player, targetPositionGetter())
+end
+
+----------------------------------------------------------------
+-- Init
+----------------------------------------------------------------
+
+function ZoneService.Init(registry)
+	services = registry
+
+	-- Totems d'achat
+	for zoneId, totem in pairs(services.MapHandles.Totems) do
+		totem.Prompt.Triggered:Connect(function(player)
+			tryBuyZone(player, zoneId)
+		end)
+	end
+
+	-- Pads de teleportation VIP
+	local vip = services.MapHandles.VIP
+	vip.PadTo.Touched:Connect(function(hit)
+		onPadTouched(hit, function()
+			return Vector3.new(vip.CenterX, vip.TopY + 2, vip.CenterZ - 10)
+		end, true)
+	end)
+	vip.PadBack.Touched:Connect(function(hit)
+		onPadTouched(hit, function()
+			return Vector3.new(0, 3, 20) -- spawn du lobby
+		end, false)
+	end)
+
+	Players.PlayerRemoving:Connect(function(player)
+		lastTeleport[player] = nil
+	end)
+end
+
+return ZoneService
+</ProtectedString>
+			</Properties>
+		</Item>
+	</Item>
+	<Item class="StarterPlayer" referent="RBX18">
+		<Properties>
+			<string name="Name">StarterPlayer</string>
+		</Properties>
+		<Item class="StarterPlayerScripts" referent="RBX19">
+			<Properties>
+				<string name="Name">StarterPlayerScripts</string>
+			</Properties>
+			<Item class="LocalScript" referent="RBX20">
+				<Properties>
+					<string name="Name">InputClient</string>
+					<ProtectedString name="Source">--[[
+	InputClient.client.lua (LocalScript - StarterPlayer &gt; StarterPlayerScripts)
+	Entrees du joueur :
+	- PvP : clic / tap sur un adversaire dans l'arene -&gt; demande CastSpell
+	  (le serveur valide tout : arene, portee, cooldown)
+	- Animation locale des cristaux (rotation + flottement), zero cout reseau
+	Les cristaux eux-memes se canalisent via ClickDetector / ProximityPrompt
+	geres directement par le serveur.
+	Lua 5.1 pur (compatible Luau).
+]]
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
+
+local localPlayer = Players.LocalPlayer
+
+local CRYSTAL_TAG = "ArcaneCrystal"
+
+----------------------------------------------------------------
+-- PvP : viser un adversaire au clic / tap
+----------------------------------------------------------------
+
+local function findPlayerFromInstance(instance)
+	local node = instance
+	while node and node ~= Workspace do
+		local player = Players:GetPlayerFromCharacter(node)
+		if player then
+			return player
+		end
+		node = node.Parent
+	end
+	return nil
+end
+
+local function tryCastAt(screenX, screenY)
+	local camera = Workspace.CurrentCamera -- relu a chaque tir (change au respawn)
+	if not camera then
+		return
+	end
+	local ray = camera:ViewportPointToRay(screenX, screenY)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local exclude = {}
+	if localPlayer.Character then
+		table.insert(exclude, localPlayer.Character)
+	end
+	params.FilterDescendantsInstances = exclude
+
+	local result = Workspace:Raycast(ray.Origin, ray.Direction * 300, params)
+	if not result or not result.Instance then
+		return
+	end
+	local target = findPlayerFromInstance(result.Instance)
+	if target and target ~= localPlayer then
+		-- Le client ne fait que DEMANDER : toutes les verifications sont serveur
+		Remotes.get().CastSpell:FireServer(target)
+	end
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then
+		return
+	end
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		tryCastAt(input.Position.X, input.Position.Y)
+	end
+end)
+
+UserInputService.TouchTapInWorld:Connect(function(position, gameProcessed)
+	if gameProcessed then
+		return
+	end
+	tryCastAt(position.X, position.Y)
+end)
+
+----------------------------------------------------------------
+-- Animation locale des cristaux (rotation + flottement doux)
+----------------------------------------------------------------
+
+local animated = {} -- { { Part = part, Base = CFrame, Phase = number } }
+
+local function watchCrystal(part)
+	table.insert(animated, {
+		Part = part,
+		Base = part.CFrame,
+		Phase = math.random() * math.pi * 2,
+	})
+end
+
+for _, part in ipairs(CollectionService:GetTagged(CRYSTAL_TAG)) do
+	watchCrystal(part)
+end
+CollectionService:GetInstanceAddedSignal(CRYSTAL_TAG):Connect(watchCrystal)
+
+local elapsed = 0
+RunService.RenderStepped:Connect(function(deltaTime)
+	elapsed = elapsed + deltaTime
+	for i = 1, #animated do
+		local entry = animated[i]
+		local part = entry.Part
+		if part.Parent then
+			local bob = math.sin(elapsed * 1.4 + entry.Phase) * 0.8
+			part.CFrame = entry.Base
+				* CFrame.new(0, bob, 0)
+				* CFrame.Angles(0, elapsed * 0.8 + entry.Phase, 0)
+		end
+	end
+end)
+</ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="LocalScript" referent="RBX21">
+				<Properties>
+					<string name="Name">UIClient</string>
+					<ProtectedString name="Source">--[[
+	UIClient.client.lua (LocalScript - StarterPlayer &gt; StarterPlayerScripts)
+	Interface joueur 100 % generee par script, en francais :
+	- barre de stats (mana, gemmes, ascensions, multiplicateur)
+	- boutique (gamepasses + developer products)
+	- familiers (oeufs, inventaire, equipement)
+	- ascension
+	- bouton auto-canalisation
+	- notifications animees + textes flottants de gain
+	Le client AFFICHE et DEMANDE : toutes les regles sont validees serveur.
+	Lua 5.1 pur (compatible Luau).
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local MarketplaceService = game:GetService("MarketplaceService")
+local Workspace = game:GetService("Workspace")
+
+local Config = require(ReplicatedStorage:WaitForChild("Config"))
+local Util = require(ReplicatedStorage:WaitForChild("Util"))
+local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
+
+local localPlayer = Players.LocalPlayer
+local playerGui = localPlayer:WaitForChild("PlayerGui")
+
+local remotes = Remotes.get()
+
+-- Dernier snapshot de profil recu du serveur
+local snapshot = nil
+
+----------------------------------------------------------------
+-- Petits constructeurs d'UI
+----------------------------------------------------------------
+
+local COLOR_PANEL = Color3.fromRGB(32, 27, 55)
+local COLOR_PANEL_LIGHT = Color3.fromRGB(48, 40, 80)
+local COLOR_ACCENT = Color3.fromRGB(150, 110, 255)
+local COLOR_TEXT = Color3.fromRGB(240, 236, 255)
+
+local function addCorner(instance, radius)
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, radius or 10)
+	corner.Parent = instance
+end
+
+local function mkFrame(parent, props)
+	local frame = Instance.new("Frame")
+	frame.BackgroundColor3 = props.Color or COLOR_PANEL
+	frame.BorderSizePixel = 0
+	frame.Size = props.Size
+	if props.Position then
+		frame.Position = props.Position
+	end
+	if props.Anchor then
+		frame.AnchorPoint = props.Anchor
+	end
+	if props.Transparency then
+		frame.BackgroundTransparency = props.Transparency
+	end
+	frame.Name = props.Name or "Frame"
+	frame.Parent = parent
+	if not props.Square then
+		addCorner(frame, props.Radius)
+	end
+	return frame
+end
+
+local function mkText(parent, props)
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = props.Size
+	if props.Position then
+		label.Position = props.Position
+	end
+	if props.Anchor then
+		label.AnchorPoint = props.Anchor
+	end
+	label.Font = props.Font or Enum.Font.FredokaOne
+	label.Text = props.Text or ""
+	label.TextColor3 = props.TextColor or COLOR_TEXT
+	label.TextScaled = props.Scaled ~= false
+	if props.XAlign then
+		label.TextXAlignment = props.XAlign
+	end
+	label.Name = props.Name or "Texte"
+	label.Parent = parent
+	return label
+end
+
+local function mkButton(parent, props)
+	local button = Instance.new("TextButton")
+	button.BackgroundColor3 = props.Color or COLOR_ACCENT
+	button.BorderSizePixel = 0
+	button.Size = props.Size
+	if props.Position then
+		button.Position = props.Position
+	end
+	if props.Anchor then
+		button.AnchorPoint = props.Anchor
+	end
+	button.Font = Enum.Font.FredokaOne
+	button.Text = props.Text or ""
+	button.TextColor3 = props.TextColor or Color3.fromRGB(255, 255, 255)
+	button.TextScaled = true
+	button.AutoButtonColor = true
+	button.Name = props.Name or "Bouton"
+	button.Parent = parent
+	addCorner(button, props.Radius)
+	if props.OnClick then
+		button.Activated:Connect(props.OnClick)
+	end
+	return button
+end
+
+local function rarityColor(rarityKey)
+	local rarity = Config.Rarities[rarityKey]
+	if rarity then
+		return Util.toColor3(rarity.Color)
+	end
+	return COLOR_TEXT
+end
+
+local function rarityDisplay(rarityKey)
+	local rarity = Config.Rarities[rarityKey]
+	if rarity and rarity.Display then
+		return rarity.Display
+	end
+	return rarityKey
+end
+
+----------------------------------------------------------------
+-- Racine
+----------------------------------------------------------------
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ArcaneUI"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = false
+screenGui.Parent = playerGui
+
+----------------------------------------------------------------
+-- Notifications animees (pile en haut a droite)
+----------------------------------------------------------------
+
+local notifContainer = Instance.new("Frame")
+notifContainer.Name = "Notifications"
+notifContainer.BackgroundTransparency = 1
+notifContainer.AnchorPoint = Vector2.new(1, 0)
+notifContainer.Position = UDim2.new(1, -10, 0, 70)
+notifContainer.Size = UDim2.new(0, 320, 1, -90)
+notifContainer.Parent = screenGui
+
+local notifLayout = Instance.new("UIListLayout")
+notifLayout.FillDirection = Enum.FillDirection.Vertical
+notifLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+notifLayout.SortOrder = Enum.SortOrder.LayoutOrder
+notifLayout.Padding = UDim.new(0, 6)
+notifLayout.Parent = notifContainer
+
+local NOTIF_COLORS = {
+	info = Color3.fromRGB(70, 80, 140),
+	succes = Color3.fromRGB(60, 140, 90),
+	erreur = Color3.fromRGB(160, 60, 70),
+	gemme = Color3.fromRGB(150, 70, 160),
+}
+
+local notifOrder = 0
+
+local function showNotification(message, kind)
+	notifOrder = notifOrder + 1
+	local frame = mkFrame(notifContainer, {
+		Name = "Notif",
+		Size = UDim2.new(1, 0, 0, 54),
+		Color = NOTIF_COLORS[kind] or NOTIF_COLORS.info,
+	})
+	frame.LayoutOrder = notifOrder
+	frame.BackgroundTransparency = 1
+
+	local label = mkText(frame, {
+		Size = UDim2.new(1, -16, 1, -10),
+		Position = UDim2.new(0, 8, 0, 5),
+		Text = message,
+		Font = Enum.Font.GothamBold,
+	})
+	label.TextTransparency = 1
+	label.TextWrapped = true
+
+	TweenService:Create(frame, TweenInfo.new(0.25), { BackgroundTransparency = 0.12 }):Play()
+	TweenService:Create(label, TweenInfo.new(0.25), { TextTransparency = 0 }):Play()
+
+	task.delay(4, function()
+		local fadeOut = TweenService:Create(frame, TweenInfo.new(0.4), { BackgroundTransparency = 1 })
+		TweenService:Create(label, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
+		fadeOut:Play()
+		fadeOut.Completed:Wait()
+		frame:Destroy()
+	end)
+end
+
+remotes.Notify.OnClientEvent:Connect(showNotification)
+
+----------------------------------------------------------------
+-- Textes flottants de gain (au-dessus du cristal canalise)
+----------------------------------------------------------------
+
+remotes.ChannelResult.OnClientEvent:Connect(function(position, mana, gems)
+	local anchor = Instance.new("Part")
+	anchor.Anchored = true
+	anchor.CanCollide = false
+	anchor.Transparency = 1
+	anchor.Size = Vector3.new(0.2, 0.2, 0.2)
+	anchor.CFrame = CFrame.new(position + Vector3.new(0, 4, 0))
+	anchor.Parent = Workspace
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.new(0, 160, 0, 60)
+	billboard.StudsOffset = Vector3.new(0, 0, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = anchor
+
+	local text = "+" .. Util.formatNumber(mana) .. " mana"
+	if gems and gems &gt; 0 then
+		text = text .. "\n+" .. tostring(gems) .. " gemmes !"
+	end
+	local label = mkText(billboard, {
+		Size = UDim2.new(1, 0, 1, 0),
+		Text = text,
+		TextColor = (gems and gems &gt; 0) and Color3.fromRGB(255, 150, 255) or Color3.fromRGB(140, 220, 255),
+	})
+	label.TextStrokeTransparency = 0.5
+
+	TweenService:Create(billboard, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ StudsOffset = Vector3.new(0, 4, 0) }):Play()
+	TweenService:Create(label, TweenInfo.new(0.9), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+	task.delay(1, function()
+		anchor:Destroy()
+	end)
+end)
+
+----------------------------------------------------------------
+-- Barre de stats (haut de l'ecran)
+----------------------------------------------------------------
+
+local statsBar = mkFrame(screenGui, {
+	Name = "BarreStats",
+	Size = UDim2.new(0, 620, 0, 52),
+	Position = UDim2.new(0.5, 0, 0, 8),
+	Anchor = Vector2.new(0.5, 0),
+	Color = COLOR_PANEL,
+	Transparency = 0.15,
+})
+
+local statLabels = {}
+local STAT_DEFS = {
+	{ Key = "Mana", Titre = "Mana", Color = Color3.fromRGB(120, 200, 255) },
+	{ Key = "Gems", Titre = "Gemmes", Color = Color3.fromRGB(255, 130, 240) },
+	{ Key = "Rebirths", Titre = "Ascensions", Color = Color3.fromRGB(200, 160, 255) },
+	{ Key = "Multi", Titre = "Multi", Color = Color3.fromRGB(255, 210, 110) },
+}
+
+for index = 1, #STAT_DEFS do
+	local def = STAT_DEFS[index]
+	local cell = mkFrame(statsBar, {
+		Name = "Stat" .. def.Key,
+		Size = UDim2.new(0.25, -10, 1, -10),
+		Position = UDim2.new(0.25 * (index - 1), 5, 0, 5),
+		Color = COLOR_PANEL_LIGHT,
+	})
+	mkText(cell, {
+		Size = UDim2.new(1, -8, 0.42, 0),
+		Position = UDim2.new(0, 4, 0, 0),
+		Text = def.Titre,
+		TextColor = def.Color,
+	})
+	statLabels[def.Key] = mkText(cell, {
+		Size = UDim2.new(1, -8, 0.55, 0),
+		Position = UDim2.new(0, 4, 0.44, 0),
+		Text = "...",
+		Font = Enum.Font.GothamBold,
+	})
+end
+
+local function refreshStats()
+	if not snapshot then
+		return
+	end
+	statLabels.Mana.Text = Util.formatNumber(snapshot.Mana)
+	statLabels.Gems.Text = Util.formatNumber(snapshot.Gems)
+	statLabels.Rebirths.Text = tostring(snapshot.Rebirths)
+	statLabels.Multi.Text = string.format("x%.2f", snapshot.GlobalMultiplier or 1)
+end
+
+----------------------------------------------------------------
+-- Fenetres (une seule ouverte a la fois)
+----------------------------------------------------------------
+
+local windows = {}
+
+local function closeAllWindows()
+	for _, window in pairs(windows) do
+		window.Visible = false
+	end
+end
+
+local function mkWindow(name, titleText)
+	local window = mkFrame(screenGui, {
+		Name = "Fenetre" .. name,
+		Size = UDim2.new(0, 560, 0, 420),
+		Position = UDim2.new(0.5, 0, 0.5, 0),
+		Anchor = Vector2.new(0.5, 0.5),
+		Color = COLOR_PANEL,
+	})
+	window.Visible = false
+
+	mkText(window, {
+		Size = UDim2.new(1, -60, 0, 40),
+		Position = UDim2.new(0, 14, 0, 6),
+		Text = titleText,
+		XAlign = Enum.TextXAlignment.Left,
+	})
+	mkButton(window, {
+		Size = UDim2.new(0, 36, 0, 36),
+		Position = UDim2.new(1, -44, 0, 8),
+		Text = "X",
+		Color = Color3.fromRGB(160, 60, 70),
+		OnClick = function()
+			window.Visible = false
+		end,
+	})
+
+	local content = Instance.new("ScrollingFrame")
+	content.Name = "Contenu"
+	content.Position = UDim2.new(0, 10, 0, 52)
+	content.Size = UDim2.new(1, -20, 1, -62)
+	content.BackgroundTransparency = 1
+	content.BorderSizePixel = 0
+	content.ScrollBarThickness = 6
+	content.CanvasSize = UDim2.new(0, 0, 0, 0)
+	content.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	content.Parent = window
+
+	local layout = Instance.new("UIListLayout")
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0, 8)
+	layout.Parent = content
+
+	windows[name] = window
+	return window, content
+end
+
+local function toggleWindow(name)
+	local window = windows[name]
+	local wasVisible = window.Visible
+	closeAllWindows()
+	window.Visible = not wasVisible
+end
+
+----------------------------------------------------------------
+-- Fenetre BOUTIQUE
+----------------------------------------------------------------
+
+local shopWindow, shopContent = mkWindow("Boutique", "Boutique Arcanique")
+local shopRefreshers = {}
+
+local function mkShopRow(parent, order, titre, desc, buttonText, buttonColor, onClick)
+	local row = mkFrame(parent, {
+		Name = "Ligne",
+		Size = UDim2.new(1, -8, 0, 74),
+		Color = COLOR_PANEL_LIGHT,
+	})
+	row.LayoutOrder = order
+	mkText(row, {
+		Size = UDim2.new(0.62, -10, 0, 30),
+		Position = UDim2.new(0, 10, 0, 6),
+		Text = titre,
+		XAlign = Enum.TextXAlignment.Left,
+	})
+	local descLabel = mkText(row, {
+		Size = UDim2.new(0.62, -10, 0, 32),
+		Position = UDim2.new(0, 10, 0, 38),
+		Text = desc,
+		Font = Enum.Font.Gotham,
+		TextColor = Color3.fromRGB(190, 185, 215),
+	})
+	descLabel.TextWrapped = true
+	local button = mkButton(row, {
+		Size = UDim2.new(0.3, 0, 0, 40),
+		Position = UDim2.new(0.66, 0, 0.5, -20),
+		Text = buttonText,
+		Color = buttonColor or COLOR_ACCENT,
+		OnClick = onClick,
+	})
+	return row, button
+end
+
+do
+	local order = 0
+	mkText(shopContent, {
+		Size = UDim2.new(1, 0, 0, 26),
+		Text = "— Gamepasses —",
+		TextColor = Color3.fromRGB(255, 210, 110),
+	}).LayoutOrder = 0
+
+	local PASS_ORDER = { "DoubleMana", "DoubleGems", "AutoTrain", "VIPZone", "VoidLord" }
+	for i = 1, #PASS_ORDER do
+		local passKey = PASS_ORDER[i]
+		local def = Config.GamePasses[passKey]
+		order = order + 1
+		local _, button = mkShopRow(shopContent, order, def.Name, def.Desc, "Acheter", nil, function()
+			if def.Id &gt; 0 then
+				MarketplaceService:PromptGamePassPurchase(localPlayer, def.Id)
+			else
+				showNotification("Ce gamepass n'est pas encore configuré (ID manquant).", "erreur")
+			end
+		end)
+		table.insert(shopRefreshers, function()
+			if snapshot and snapshot.Passes and snapshot.Passes[passKey] then
+				button.Text = "Possédé"
+				button.BackgroundColor3 = Color3.fromRGB(70, 120, 80)
+			else
+				button.Text = "Acheter"
+				button.BackgroundColor3 = COLOR_ACCENT
+			end
+		end)
+	end
+
+	order = order + 1
+	mkText(shopContent, {
+		Size = UDim2.new(1, 0, 0, 26),
+		Text = "— Packs &amp; Gemmes —",
+		TextColor = Color3.fromRGB(255, 210, 110),
+	}).LayoutOrder = order
+
+	local PRODUCT_ORDER = { "StarterPack", "Gems100", "Gems1200" }
+	for i = 1, #PRODUCT_ORDER do
+		local productKey = PRODUCT_ORDER[i]
+		local def = Config.Products[productKey]
+		order = order + 1
+		local row, button = mkShopRow(shopContent, order, def.Name, def.Desc, "Acheter",
+			Color3.fromRGB(90, 140, 220), function()
+				if def.Id &gt; 0 then
+					MarketplaceService:PromptProductPurchase(localPlayer, def.Id)
+				else
+					showNotification("Ce produit n'est pas encore configuré (ID manquant).", "erreur")
+				end
+			end)
+		if productKey == "StarterPack" then
+			table.insert(shopRefreshers, function()
+				local owned = snapshot and snapshot.StarterPackOwned
+				row.Visible = not owned
+			end)
+		end
+	end
+end
+
+local function refreshShop()
+	for i = 1, #shopRefreshers do
+		shopRefreshers[i]()
+	end
+end
+
+----------------------------------------------------------------
+-- Fenetre FAMILIERS
+----------------------------------------------------------------
+
+local petsWindow, petsContent = mkWindow("Familiers", "Familiers &amp; Œufs")
+
+local eggsSection = mkFrame(petsContent, {
+	Name = "Oeufs",
+	Size = UDim2.new(1, -8, 0, 120),
+	Color = COLOR_PANEL_LIGHT,
+})
+eggsSection.LayoutOrder = 1
+
+for i = 1, #Config.Eggs do
+	local egg = Config.Eggs[i]
+	local cell = mkFrame(eggsSection, {
+		Name = "Oeuf" .. tostring(i),
+		Size = UDim2.new(1 / #Config.Eggs, -10, 1, -10),
+		Position = UDim2.new((i - 1) / #Config.Eggs, 5, 0, 5),
+		Color = COLOR_PANEL,
+	})
+	mkText(cell, {
+		Size = UDim2.new(1, -8, 0, 28),
+		Position = UDim2.new(0, 4, 0, 4),
+		Text = egg.Name,
+	})
+	mkText(cell, {
+		Size = UDim2.new(1, -8, 0, 22),
+		Position = UDim2.new(0, 4, 0, 34),
+		Text = Util.formatNumber(egg.Cost) .. " gemmes",
+		Font = Enum.Font.Gotham,
+		TextColor = Color3.fromRGB(255, 130, 240),
+	})
+	mkButton(cell, {
+		Size = UDim2.new(1, -16, 0, 34),
+		Position = UDim2.new(0, 8, 1, -42),
+		Text = "Ouvrir",
+		OnClick = function()
+			local ok, result = remotes.BuyEgg:InvokeServer(i)
+			if ok and type(result) == "table" then
+				showNotification("✨ " .. result.Name .. " (" .. rarityDisplay(result.Rarity) ..
+					", x" .. tostring(result.Multiplier) .. ") rejoint tes familiers !", "succes")
+			else
+				showNotification(tostring(result), "erreur")
+			end
+		end,
+	})
+end
+
+local inventorySection = Instance.new("Frame")
+inventorySection.Name = "Inventaire"
+inventorySection.BackgroundTransparency = 1
+inventorySection.Size = UDim2.new(1, -8, 0, 40)
+inventorySection.AutomaticSize = Enum.AutomaticSize.Y
+inventorySection.LayoutOrder = 2
+inventorySection.Parent = petsContent
+
+local inventoryLayout = Instance.new("UIListLayout")
+inventoryLayout.SortOrder = Enum.SortOrder.LayoutOrder
+inventoryLayout.Padding = UDim.new(0, 6)
+inventoryLayout.Parent = inventorySection
+
+local function refreshPets()
+	if not snapshot then
+		return
+	end
+	for _, child in ipairs(inventorySection:GetChildren()) do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+
+	local equippedCount = 0
+	for i = 1, #snapshot.Pets do
+		if snapshot.Pets[i].Equipped then
+			equippedCount = equippedCount + 1
+		end
+	end
+
+	local header = mkFrame(inventorySection, {
+		Name = "Entete",
+		Size = UDim2.new(1, 0, 0, 30),
+		Color = COLOR_PANEL_LIGHT,
+	})
+	header.LayoutOrder = 0
+	mkText(header, {
+		Size = UDim2.new(1, -12, 1, 0),
+		Position = UDim2.new(0, 6, 0, 0),
+		Text = "Inventaire — " .. tostring(equippedCount) .. "/" ..
+			tostring(snapshot.MaxEquippedPets or Config.MaxEquippedPets) .. " équipés",
+		XAlign = Enum.TextXAlignment.Left,
+	})
+
+	if #snapshot.Pets == 0 then
+		local empty = mkFrame(inventorySection, {
+			Name = "Vide",
+			Size = UDim2.new(1, 0, 0, 40),
+			Color = COLOR_PANEL_LIGHT,
+		})
+		empty.LayoutOrder = 1
+		mkText(empty, {
+			Size = UDim2.new(1, -12, 1, 0),
+			Position = UDim2.new(0, 6, 0, 0),
+			Text = "Aucun familier : ouvre un œuf pour commencer !",
+			Font = Enum.Font.Gotham,
+			TextColor = Color3.fromRGB(190, 185, 215),
+		})
+	end
+
+	for i = 1, #snapshot.Pets do
+		local pet = snapshot.Pets[i]
+		local row = mkFrame(inventorySection, {
+			Name = "Pet" .. pet.Uid,
+			Size = UDim2.new(1, 0, 0, 52),
+			Color = COLOR_PANEL_LIGHT,
+		})
+		row.LayoutOrder = i
+		mkText(row, {
+			Size = UDim2.new(0.42, -10, 0, 26),
+			Position = UDim2.new(0, 10, 0, 4),
+			Text = pet.Name,
+			XAlign = Enum.TextXAlignment.Left,
+			TextColor = rarityColor(pet.Rarity),
+		})
+		mkText(row, {
+			Size = UDim2.new(0.42, -10, 0, 20),
+			Position = UDim2.new(0, 10, 0, 30),
+			Text = rarityDisplay(pet.Rarity) .. "  •  mana x" .. tostring(pet.Multiplier),
+			Font = Enum.Font.Gotham,
+			TextColor = Color3.fromRGB(190, 185, 215),
+			XAlign = Enum.TextXAlignment.Left,
+		})
+		mkButton(row, {
+			Size = UDim2.new(0.26, 0, 0, 36),
+			Position = UDim2.new(0.71, 0, 0.5, -18),
+			Text = pet.Equipped and "Retirer" or "Équiper",
+			Color = pet.Equipped and Color3.fromRGB(150, 90, 70) or Color3.fromRGB(70, 130, 90),
+			OnClick = function()
+				local ok, message = remotes.SetPetEquipped:InvokeServer(pet.Uid, not pet.Equipped)
+				if not ok then
+					showNotification(tostring(message), "erreur")
+				end
+			end,
+		})
+	end
+end
+
+----------------------------------------------------------------
+-- Fenetre ASCENSION
+----------------------------------------------------------------
+
+local rebirthWindow, rebirthContent = mkWindow("Ascension", "Ascension Arcanique")
+
+local rebirthInfo = mkFrame(rebirthContent, {
+	Name = "Infos",
+	Size = UDim2.new(1, -8, 0, 220),
+	Color = COLOR_PANEL_LIGHT,
+})
+rebirthInfo.LayoutOrder = 1
+
+local rebirthTitle = mkText(rebirthInfo, {
+	Size = UDim2.new(1, -20, 0, 40),
+	Position = UDim2.new(0, 10, 0, 8),
+	Text = "Sacrifie TOUTE ta mana pour un pouvoir permanent.",
+})
+rebirthTitle.TextWrapped = true
+
+local rebirthDetails = mkText(rebirthInfo, {
+	Size = UDim2.new(1, -20, 0, 120),
+	Position = UDim2.new(0, 10, 0, 56),
+	Text = "...",
+	Font = Enum.Font.Gotham,
+	TextColor = Color3.fromRGB(200, 195, 225),
+})
+rebirthDetails.TextWrapped = true
+
+local rebirthButton = mkButton(rebirthContent, {
+	Size = UDim2.new(1, -8, 0, 52),
+	Text = "S'élever",
+	Color = Color3.fromRGB(170, 110, 60),
+	OnClick = function()
+		local ok, message = remotes.DoRebirth:InvokeServer()
+		if not ok then
+			showNotification(tostring(message), "erreur")
+		end
+	end,
+})
+rebirthButton.LayoutOrder = 2
+
+local function refreshRebirth()
+	if not snapshot then
+		return
+	end
+	local bonusNow = math.floor((snapshot.RebirthMultiplier - 1) * 100 + 0.5)
+	local bonusNext = math.floor(Config.Rebirth.BonusPerRebirth * 100)
+	rebirthDetails.Text = "Ascensions accomplies : " .. tostring(snapshot.Rebirths)
+		.. "\nBonus permanent actuel : +" .. tostring(bonusNow) .. " % de mana"
+		.. "\n\nProchaine ascension :"
+		.. "\n• Coût : " .. Util.formatNumber(snapshot.RebirthCost) .. " mana (TOUTE ta mana est sacrifiée)"
+		.. "\n• Récompense : +" .. tostring(bonusNext) .. " % de mana permanent"
+		.. "\n• Auras aux paliers 1, 3, 6 et 10"
+	local canAfford = snapshot.Mana &gt;= snapshot.RebirthCost
+	rebirthButton.Text = canAfford and "S'élever !"
+		or ("S'élever (" .. Util.formatNumber(snapshot.RebirthCost) .. " mana requis)")
+	rebirthButton.BackgroundColor3 = canAfford
+		and Color3.fromRGB(210, 140, 60)
+		or Color3.fromRGB(100, 80, 70)
+end
+
+----------------------------------------------------------------
+-- Colonne de boutons (gauche)
+----------------------------------------------------------------
+
+local buttonColumn = Instance.new("Frame")
+buttonColumn.Name = "ColonneBoutons"
+buttonColumn.BackgroundTransparency = 1
+buttonColumn.Position = UDim2.new(0, 10, 0.5, -130)
+buttonColumn.Size = UDim2.new(0, 130, 0, 260)
+buttonColumn.Parent = screenGui
+
+local columnLayout = Instance.new("UIListLayout")
+columnLayout.SortOrder = Enum.SortOrder.LayoutOrder
+columnLayout.Padding = UDim.new(0, 8)
+columnLayout.Parent = buttonColumn
+
+mkButton(buttonColumn, {
+	Size = UDim2.new(1, 0, 0, 54),
+	Text = "Boutique",
+	Color = Color3.fromRGB(90, 140, 220),
+	OnClick = function()
+		toggleWindow("Boutique")
+	end,
+}).LayoutOrder = 1
+
+mkButton(buttonColumn, {
+	Size = UDim2.new(1, 0, 0, 54),
+	Text = "Familiers",
+	Color = Color3.fromRGB(70, 130, 90),
+	OnClick = function()
+		toggleWindow("Familiers")
+	end,
+}).LayoutOrder = 2
+
+mkButton(buttonColumn, {
+	Size = UDim2.new(1, 0, 0, 54),
+	Text = "Ascension",
+	Color = Color3.fromRGB(170, 110, 60),
+	OnClick = function()
+		toggleWindow("Ascension")
+	end,
+}).LayoutOrder = 3
+
+local autoButton = mkButton(buttonColumn, {
+	Size = UDim2.new(1, 0, 0, 54),
+	Text = "Auto : OFF",
+	Color = Color3.fromRGB(90, 85, 120),
+	OnClick = function()
+		if not snapshot then
+			return
+		end
+		if snapshot.Passes and snapshot.Passes.AutoTrain then
+			remotes.ToggleAuto:FireServer(not snapshot.AutoTrain)
+		else
+			local def = Config.GamePasses.AutoTrain
+			if def.Id &gt; 0 then
+				MarketplaceService:PromptGamePassPurchase(localPlayer, def.Id)
+			else
+				showNotification("L'auto-canalisation nécessite le gamepass « Auto-Canalisation » (ID non configuré).", "erreur")
+			end
+		end
+	end,
+})
+autoButton.LayoutOrder = 4
+
+local function refreshAutoButton()
+	if not snapshot then
+		return
+	end
+	if snapshot.AutoTrain then
+		autoButton.Text = "Auto : ON"
+		autoButton.BackgroundColor3 = Color3.fromRGB(70, 160, 100)
+	else
+		autoButton.Text = "Auto : OFF"
+		autoButton.BackgroundColor3 = Color3.fromRGB(90, 85, 120)
+	end
+end
+
+----------------------------------------------------------------
+-- Synchronisation avec le serveur
+----------------------------------------------------------------
+
+local function applySnapshot(newSnapshot)
+	snapshot = newSnapshot
+	refreshStats()
+	refreshShop()
+	refreshRebirth()
+	refreshAutoButton()
+	-- L'inventaire des familiers est reconstruit uniquement si visible
+	-- (le snapshot arrive a chaque gain de mana)
+	if petsWindow.Visible then
+		refreshPets()
+	end
+end
+
+-- Reconstruit l'inventaire a l'ouverture de la fenetre Familiers
+petsWindow:GetPropertyChangedSignal("Visible"):Connect(function()
+	if petsWindow.Visible then
+		refreshPets()
+	end
+end)
+
+remotes.ProfileChanged.OnClientEvent:Connect(applySnapshot)
+
+-- Demande initiale (au cas ou le premier push serveur soit passe avant nous)
+task.spawn(function()
+	local initial = remotes.GetProfile:InvokeServer()
+	if initial and not snapshot then
+		applySnapshot(initial)
+	end
+end)
+</ProtectedString>
+				</Properties>
+			</Item>
+		</Item>
+	</Item>
+	<Item class="StarterGui" referent="RBX22">
+		<Properties>
+			<string name="Name">StarterGui</string>
+		</Properties>
+	</Item>
+	<Item class="Lighting" referent="RBX23">
+		<Properties>
+			<string name="Name">Lighting</string>
+		</Properties>
+	</Item>
+	<Item class="SoundService" referent="RBX24">
+		<Properties>
+			<string name="Name">SoundService</string>
+		</Properties>
+	</Item>
+	<Item class="Players" referent="RBX25">
+		<Properties>
+			<string name="Name">Players</string>
+		</Properties>
+	</Item>
+</roblox>

@@ -19,7 +19,6 @@ local Workspace = game:GetService("Workspace")
 local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
 
 local localPlayer = Players.LocalPlayer
-local camera = Workspace.CurrentCamera
 
 local CRYSTAL_TAG = "ArcaneCrystal"
 
@@ -40,6 +39,10 @@ local function findPlayerFromInstance(instance)
 end
 
 local function tryCastAt(screenX, screenY)
+	local camera = Workspace.CurrentCamera -- relu a chaque tir (change au respawn)
+	if not camera then
+		return
+	end
 	local ray = camera:ViewportPointToRay(screenX, screenY)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude

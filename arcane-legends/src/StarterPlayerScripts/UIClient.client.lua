@@ -755,10 +755,21 @@ local function applySnapshot(newSnapshot)
 	snapshot = newSnapshot
 	refreshStats()
 	refreshShop()
-	refreshPets()
 	refreshRebirth()
 	refreshAutoButton()
+	-- L'inventaire des familiers est reconstruit uniquement si visible
+	-- (le snapshot arrive a chaque gain de mana)
+	if petsWindow.Visible then
+		refreshPets()
+	end
 end
+
+-- Reconstruit l'inventaire a l'ouverture de la fenetre Familiers
+petsWindow:GetPropertyChangedSignal("Visible"):Connect(function()
+	if petsWindow.Visible then
+		refreshPets()
+	end
+end)
 
 remotes.ProfileChanged.OnClientEvent:Connect(applySnapshot)
 
