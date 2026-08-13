@@ -12,13 +12,29 @@ affronte les autres sorciers dans l'arène et grimpe au classement global.
 ## Installation (2 minutes)
 
 1. Ouvre **Roblox Studio**.
-2. `Fichier → Ouvrir depuis un fichier` → choisis **`ArcaneLegends.rbxlx`**.
-   Les 16 scripts sont déjà en place dans l'arborescence (ReplicatedStorage,
-   ServerScriptService, StarterPlayer > StarterPlayerScripts).
-3. Publie le jeu : `Fichier → Publier sur Roblox` (nécessaire pour les DataStores).
-4. Active l'API Studio : `Paramètres du jeu → Sécurité → "Enable Studio Access
-   to API Services"` = ON (sinon pas de sauvegarde en test Studio).
-5. Appuie sur **Play**. La map se construit au démarrage, l'UI apparaît.
+2. `Fichier → Ouvrir depuis un fichier` (FILE → Open from File) → choisis
+   **`ArcaneLegends.rbxlx`**. Les 16 scripts sont déjà en place dans
+   l'arborescence (ReplicatedStorage, ServerScriptService,
+   StarterPlayer > StarterPlayerScripts).
+3. **IMPORTANT — en mode édition, tu ne vois qu'une plateforme avec un
+   panneau « Appuie sur PLAY »** : c'est normal. La map complète (zones,
+   cristaux, arène, sanctuaire VIP, classement) est générée à 100 % par
+   script **au lancement du serveur** — c'est le fonctionnement voulu.
+4. Appuie sur **Play (F5)** : le décor d'attente disparaît, la map se
+   construit en ~1 seconde et l'interface apparaît.
+5. Pour les sauvegardes et le classement : publie le jeu
+   (`Fichier → Publier sur Roblox`) puis active
+   `Paramètres du jeu → Sécurité → "Enable Studio Access to API Services"`.
+
+### Dépannage « je ne vois rien »
+
+- Panneau **Explorateur** (View → Explorer) : `ServerScriptService` doit
+  contenir `Main` + 10 modules, `ReplicatedStorage` : Config/Util/Remotes.
+  S'il est vide, le fichier ouvert n'est pas le bon `.rbxlx`.
+- Après Play, si la map n'apparaît pas : ouvre **View → Output** et regarde
+  la première ligne rouge — c'est elle qui explique le blocage.
+- Au lancement réussi, l'Output affiche :
+  `[Arcane Legends] Serveur initialise : que la magie commence !`
 
 ## Configuration de la monétisation (TODO_UTILISATEUR)
 

@@ -20,6 +20,14 @@ local CombatService = require(ServerScriptService:WaitForChild("CombatService"))
 local MonetizationService = require(ServerScriptService:WaitForChild("MonetizationService"))
 local LeaderboardService = require(ServerScriptService:WaitForChild("LeaderboardService"))
 
+-- 0) Retire le decor d'attente visible en mode edition dans Studio
+-- (la place .rbxlx contient juste une plateforme + un panneau "Appuie sur
+-- Play" pour que le fichier ne paraisse pas vide avant le lancement)
+local placeholder = game:GetService("Workspace"):FindFirstChild("PlaceholderEditeur")
+if placeholder then
+	placeholder:Destroy()
+end
+
 -- 1) La map d'abord : les services branchent leurs interactions dessus
 local mapHandles = MapBuilder.Build()
 

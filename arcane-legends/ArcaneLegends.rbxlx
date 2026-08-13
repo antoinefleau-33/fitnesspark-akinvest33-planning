@@ -5,12 +5,54 @@
 		<Properties>
 			<string name="Name">Workspace</string>
 		</Properties>
+		<Item class="Folder" referent="RBX4">
+			<Properties>
+				<string name="Name">PlaceholderEditeur</string>
+			</Properties>
+			<Item class="Part" referent="RBX5">
+				<Properties>
+					<string name="Name">SolAttente</string>
+					<bool name="Anchored">true</bool>
+					<Color3uint8 name="Color3uint8">4283987548</Color3uint8>
+					<token name="Material">1280</token>
+					<CoordinateFrame name="CFrame"><X>0</X><Y>-2</Y><Z>0</Z><R00>1</R00><R01>0</R01><R02>0</R02><R10>0</R10><R11>1</R11><R12>0</R12><R20>0</R20><R21>0</R21><R22>1</R22></CoordinateFrame>
+					<Vector3 name="size"><X>512</X><Y>4</Y><Z>512</Z></Vector3>
+				</Properties>
+			</Item>
+			<Item class="Part" referent="RBX6">
+				<Properties>
+					<string name="Name">PanneauAttente</string>
+					<bool name="Anchored">true</bool>
+					<Color3uint8 name="Color3uint8">4280294199</Color3uint8>
+					<token name="Material">272</token>
+					<CoordinateFrame name="CFrame"><X>0</X><Y>10</Y><Z>-20</Z><R00>1</R00><R01>0</R01><R02>0</R02><R10>0</R10><R11>1</R11><R12>0</R12><R20>0</R20><R21>0</R21><R22>1</R22></CoordinateFrame>
+					<Vector3 name="size"><X>34</X><Y>16</Y><Z>1</Z></Vector3>
+				</Properties>
+				<Item class="SurfaceGui" referent="RBX2">
+					<Properties>
+						<string name="Name">Message</string>
+					</Properties>
+					<Item class="TextLabel" referent="RBX3">
+						<Properties>
+							<string name="Name">Texte</string>
+							<string name="Text">ARCANE LEGENDS
+
+Appuie sur PLAY (F5) :
+la map se construit automatiquement au lancement !</string>
+							<bool name="TextScaled">true</bool>
+							<bool name="TextWrapped">true</bool>
+							<UDim2 name="Size"><XS>1</XS><XO>0</XO><YS>1</YS><YO>0</YO></UDim2>
+						</Properties>
+					</Item>
+				</Item>
+			</Item>
+		</Item>
 	</Item>
-	<Item class="ReplicatedStorage" referent="RBX2">
+	<Item class="ReplicatedStorage" referent="RBX7">
 		<Properties>
 			<string name="Name">ReplicatedStorage</string>
 		</Properties>
-		<Item class="ModuleScript" referent="RBX3">
+		<Item class="ModuleScript" referent="RBX8">
 			<Properties>
 				<string name="Name">Config</string>
 				<ProtectedString name="Source">--[[
@@ -198,7 +240,7 @@ return Config
 </ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="ModuleScript" referent="RBX4">
+		<Item class="ModuleScript" referent="RBX9">
 			<Properties>
 				<string name="Name">Remotes</string>
 				<ProtectedString name="Source">--[[
@@ -280,7 +322,7 @@ return Remotes
 </ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="ModuleScript" referent="RBX5">
+		<Item class="ModuleScript" referent="RBX10">
 			<Properties>
 				<string name="Name">Util</string>
 				<ProtectedString name="Source">--[[
@@ -435,11 +477,11 @@ return Util
 			</Properties>
 		</Item>
 	</Item>
-	<Item class="ServerScriptService" referent="RBX6">
+	<Item class="ServerScriptService" referent="RBX11">
 		<Properties>
 			<string name="Name">ServerScriptService</string>
 		</Properties>
-		<Item class="ModuleScript" referent="RBX7">
+		<Item class="ModuleScript" referent="RBX12">
 			<Properties>
 				<string name="Name">CombatService</string>
 				<ProtectedString name="Source">--[[
@@ -657,7 +699,7 @@ return CombatService
 </ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="ModuleScript" referent="RBX8">
+		<Item class="ModuleScript" referent="RBX13">
 			<Properties>
 				<string name="Name">DataManager</string>
 				<ProtectedString name="Source">--[[
@@ -934,7 +976,7 @@ return DataManager
 </ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="ModuleScript" referent="RBX9">
+		<Item class="ModuleScript" referent="RBX14">
 			<Properties>
 				<string name="Name">Economy</string>
 				<ProtectedString name="Source">--[[
@@ -1146,7 +1188,7 @@ return Economy
 </ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="ModuleScript" referent="RBX10">
+		<Item class="ModuleScript" referent="RBX15">
 			<Properties>
 				<string name="Name">LeaderboardService</string>
 				<ProtectedString name="Source">--[[
@@ -1323,7 +1365,7 @@ return LeaderboardService
 </ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="Script" referent="RBX11">
+		<Item class="Script" referent="RBX16">
 			<Properties>
 				<string name="Name">Main</string>
 				<ProtectedString name="Source">--[[
@@ -1347,6 +1389,14 @@ local RebirthService = require(ServerScriptService:WaitForChild("RebirthService"
 local CombatService = require(ServerScriptService:WaitForChild("CombatService"))
 local MonetizationService = require(ServerScriptService:WaitForChild("MonetizationService"))
 local LeaderboardService = require(ServerScriptService:WaitForChild("LeaderboardService"))
+
+-- 0) Retire le decor d'attente visible en mode edition dans Studio
+-- (la place .rbxlx contient juste une plateforme + un panneau "Appuie sur
+-- Play" pour que le fichier ne paraisse pas vide avant le lancement)
+local placeholder = game:GetService("Workspace"):FindFirstChild("PlaceholderEditeur")
+if placeholder then
+	placeholder:Destroy()
+end
 
 -- 1) La map d'abord : les services branchent leurs interactions dessus
 local mapHandles = MapBuilder.Build()
@@ -1380,7 +1430,7 @@ print("[Arcane Legends] Serveur initialise : que la magie commence !")
 </ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="ModuleScript" referent="RBX12">
+		<Item class="ModuleScript" referent="RBX17">
 			<Properties>
 				<string name="Name">MapBuilder</string>
 				<ProtectedString name="Source">--[[
@@ -1961,7 +2011,7 @@ return MapBuilder
 </ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="ModuleScript" referent="RBX13">
+		<Item class="ModuleScript" referent="RBX18">
 			<Properties>
 				<string name="Name">MonetizationService</string>
 				<ProtectedString name="Source">--[[
@@ -2198,7 +2248,7 @@ return MonetizationService
 </ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="ModuleScript" referent="RBX14">
+		<Item class="ModuleScript" referent="RBX19">
 			<Properties>
 				<string name="Name">PetService</string>
 				<ProtectedString name="Source">--[[
@@ -2440,7 +2490,7 @@ return PetService
 </ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="ModuleScript" referent="RBX15">
+		<Item class="ModuleScript" referent="RBX20">
 			<Properties>
 				<string name="Name">RebirthService</string>
 				<ProtectedString name="Source">--[[
@@ -2575,7 +2625,7 @@ return RebirthService
 </ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="ModuleScript" referent="RBX16">
+		<Item class="ModuleScript" referent="RBX21">
 			<Properties>
 				<string name="Name">TrainingService</string>
 				<ProtectedString name="Source">--[[
@@ -2794,7 +2844,7 @@ return TrainingService
 </ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="ModuleScript" referent="RBX17">
+		<Item class="ModuleScript" referent="RBX22">
 			<Properties>
 				<string name="Name">ZoneService</string>
 				<ProtectedString name="Source">--[[
@@ -2933,15 +2983,15 @@ return ZoneService
 			</Properties>
 		</Item>
 	</Item>
-	<Item class="StarterPlayer" referent="RBX18">
+	<Item class="StarterPlayer" referent="RBX23">
 		<Properties>
 			<string name="Name">StarterPlayer</string>
 		</Properties>
-		<Item class="StarterPlayerScripts" referent="RBX19">
+		<Item class="StarterPlayerScripts" referent="RBX24">
 			<Properties>
 				<string name="Name">StarterPlayerScripts</string>
 			</Properties>
-			<Item class="LocalScript" referent="RBX20">
+			<Item class="LocalScript" referent="RBX25">
 				<Properties>
 					<string name="Name">InputClient</string>
 					<ProtectedString name="Source">--[[
@@ -3061,7 +3111,7 @@ end)
 </ProtectedString>
 				</Properties>
 			</Item>
-			<Item class="LocalScript" referent="RBX21">
+			<Item class="LocalScript" referent="RBX26">
 				<Properties>
 					<string name="Name">UIClient</string>
 					<ProtectedString name="Source">--[[
@@ -3863,22 +3913,22 @@ end)
 			</Item>
 		</Item>
 	</Item>
-	<Item class="StarterGui" referent="RBX22">
+	<Item class="StarterGui" referent="RBX27">
 		<Properties>
 			<string name="Name">StarterGui</string>
 		</Properties>
 	</Item>
-	<Item class="Lighting" referent="RBX23">
+	<Item class="Lighting" referent="RBX28">
 		<Properties>
 			<string name="Name">Lighting</string>
 		</Properties>
 	</Item>
-	<Item class="SoundService" referent="RBX24">
+	<Item class="SoundService" referent="RBX29">
 		<Properties>
 			<string name="Name">SoundService</string>
 		</Properties>
 	</Item>
-	<Item class="Players" referent="RBX25">
+	<Item class="Players" referent="RBX30">
 		<Properties>
 			<string name="Name">Players</string>
 		</Properties>

@@ -79,6 +79,74 @@ def service_close(indent):
     return "%s</Item>" % ("\t" * indent)
 
 
+def placeholder_decor(indent):
+    """Décor statique visible dès l'ouverture dans Studio (mode édition).
+
+    La vraie map est générée par script au lancement (exigence du brief) ;
+    sans ce décor, le monde paraît vide en édition et on croit à un fichier
+    cassé. Main.server.lua détruit ce dossier au démarrage du serveur.
+    """
+
+    def color3uint8(rgb):
+        r, g, b = rgb
+        return str(0xFF000000 + (r << 16) + (g << 8) + b)
+
+    def cframe(x, y, z):
+        return (f'<CoordinateFrame name="CFrame">'
+                f'<X>{x}</X><Y>{y}</Y><Z>{z}</Z>'
+                f'<R00>1</R00><R01>0</R01><R02>0</R02>'
+                f'<R10>0</R10><R11>1</R11><R12>0</R12>'
+                f'<R20>0</R20><R21>0</R21><R22>1</R22>'
+                f'</CoordinateFrame>')
+
+    def part(pad, name, pos, size, rgb, material, children=""):
+        x, y, z = pos
+        sx, sy, sz = size
+        return (f'{pad}<Item class="Part" referent="{next_referent()}">\n'
+                f'{pad}\t<Properties>\n'
+                f'{pad}\t\t<string name="Name">{name}</string>\n'
+                f'{pad}\t\t<bool name="Anchored">true</bool>\n'
+                f'{pad}\t\t<Color3uint8 name="Color3uint8">{color3uint8(rgb)}</Color3uint8>\n'
+                f'{pad}\t\t<token name="Material">{material}</token>\n'
+                f'{pad}\t\t{cframe(x, y, z)}\n'
+                f'{pad}\t\t<Vector3 name="size"><X>{sx}</X><Y>{sy}</Y><Z>{sz}</Z></Vector3>\n'
+                f'{pad}\t</Properties>\n'
+                f'{children}'
+                f'{pad}</Item>')
+
+    pad = "\t" * indent
+    inner = "\t" * (indent + 1)
+
+    message = ("ARCANE LEGENDS\n\nAppuie sur PLAY (F5) :\n"
+               "la map se construit automatiquement au lancement !")
+    sign_gui = (f'{inner}\t<Item class="SurfaceGui" referent="{next_referent()}">\n'
+                f'{inner}\t\t<Properties>\n'
+                f'{inner}\t\t\t<string name="Name">Message</string>\n'
+                f'{inner}\t\t</Properties>\n'
+                f'{inner}\t\t<Item class="TextLabel" referent="{next_referent()}">\n'
+                f'{inner}\t\t\t<Properties>\n'
+                f'{inner}\t\t\t\t<string name="Name">Texte</string>\n'
+                f'{inner}\t\t\t\t<string name="Text">{xml_escape(message)}</string>\n'
+                f'{inner}\t\t\t\t<bool name="TextScaled">true</bool>\n'
+                f'{inner}\t\t\t\t<bool name="TextWrapped">true</bool>\n'
+                f'{inner}\t\t\t\t<UDim2 name="Size">'
+                f'<XS>1</XS><XO>0</XO><YS>1</YS><YO>0</YO></UDim2>\n'
+                f'{inner}\t\t\t</Properties>\n'
+                f'{inner}\t\t</Item>\n'
+                f'{inner}\t</Item>\n')
+
+    lines = []
+    lines.append(f'{pad}<Item class="Folder" referent="{next_referent()}">')
+    lines.append(f'{pad}\t<Properties>')
+    lines.append(f'{pad}\t\t<string name="Name">PlaceholderEditeur</string>')
+    lines.append(f'{pad}\t</Properties>')
+    lines.append(part(inner, "SolAttente", (0, -2, 0), (512, 4, 512), (88, 118, 92), 1280))
+    lines.append(part(inner, "PanneauAttente", (0, 10, -20), (34, 16, 1), (32, 27, 55), 272,
+                      children=sign_gui))
+    lines.append(f'{pad}</Item>')
+    return "\n".join(lines)
+
+
 def collect_scripts(subdir):
     folder = os.path.join(SRC, subdir)
     files = sorted(
@@ -102,8 +170,11 @@ def main():
     parts.append("\t<External>null</External>")
     parts.append("\t<External>nil</External>")
 
-    # Workspace vide : 100 % de la map est construite par MapBuilder au démarrage.
+    # Workspace : uniquement le décor d'attente visible en mode édition —
+    # 100 % de la vraie map est construite par MapBuilder au démarrage
+    # (Main.server.lua détruit le placeholder à ce moment-là).
     parts.append(service_open("Workspace", 1))
+    parts.append(placeholder_decor(2))
     parts.append(service_close(1))
 
     # ReplicatedStorage : modules partagés
