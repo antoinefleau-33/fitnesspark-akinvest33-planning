@@ -17,6 +17,7 @@ d'authentification correctement plutôt que de la contourner.
 """
 
 import argparse
+import base64
 import concurrent.futures
 import hashlib
 import http.client
@@ -36,7 +37,7 @@ import zipfile
 from pathlib import Path
 
 APP_NAME = "poclauncher"
-APP_VERSION = "1.3.0"
+APP_VERSION = "2.0.0"
 
 # La console Windows utilise encore cp1252 par défaut dans certaines configurations : sans ça, le
 # moindre accent fait planter le script sur un UnicodeEncodeError, ce qui donne l'impression que
@@ -132,7 +133,8 @@ RAW_BASE = ("https://raw.githubusercontent.com/antoinefleau-33/"
             "fitnesspark-akinvest33-planning/claude/minecraft-modular-client-poc-78j3i2/"
             "launcher")
 
-UPDATABLE_FILES = ["mclaunch.py", "gui.py", "ui.py", "Lancer.bat", "Installer.bat"]
+UPDATABLE_FILES = ["mclaunch.py", "gui.py", "ui.py", "Lancer.bat", "Installer.bat",
+                   "Compiler-EXE.bat"]
 
 
 def latest_launcher_version():
@@ -183,6 +185,105 @@ def self_update(target_dir: Path = None, on_progress=None):
     if on_progress:
         on_progress(1.0, "Mise à jour installée")
     return len(fetched)
+
+
+# ----------------------------------------------------------------------------------------------
+# Modrinth : recherche et installation de mods
+# ----------------------------------------------------------------------------------------------
+
+MODRINTH_API = "https://api.modrinth.com/v2"
+
+
+def modrinth_search(query, mc_version, loader="fabric", limit=20, offset=0, category=None):
+    """
+    Recherche de mods. Les facettes sont filtrées côté serveur : inutile de rapatrier 200 résultats
+    pour en écarter 180 localement, et l'utilisateur ne voit que ce qui est réellement installable
+    sur sa version.
+    """
+    facets = [[f"versions:{mc_version}"], [f"categories:{loader}"], ["project_type:mod"]]
+    if category:
+        facets.append([f"categories:{category}"])
+    params = urllib.parse.urlencode({
+        "query": query or "",
+        "facets": json.dumps(facets),
+        "limit": limit,
+        "offset": offset,
+        "index": "relevance" if query else "downloads",
+    })
+    status, data = http_json(f"{MODRINTH_API}/search?{params}")
+    if status != 200:
+        raise OSError(f"recherche impossible (HTTP {status})")
+    return data.get("hits", []), data.get("total_hits", 0)
+
+
+def modrinth_best_file(project_id, mc_version, loader="fabric"):
+    """Meilleure version compatible : stable si elle existe, sinon la plus récente."""
+    params = urllib.parse.urlencode({
+        "game_versions": json.dumps([mc_version]),
+        "loaders": json.dumps([loader]),
+    })
+    status, versions = http_json(f"{MODRINTH_API}/project/{project_id}/version?{params}")
+    if status != 200 or not versions:
+        return None
+    stable = [v for v in versions if v.get("version_type") == "release"] or versions
+    best = stable[0]
+    primary = next((f for f in best["files"] if f.get("primary")), best["files"][0])
+    return {
+        "filename": primary["filename"],
+        "url": primary["url"],
+        "size": primary.get("size"),
+        "version": best["version_number"],
+        "dependencies": [d for d in best.get("dependencies", [])
+                         if d.get("dependency_type") == "required"],
+    }
+
+
+def modrinth_install(project_id, mc_version, mods_dir: Path, loader="fabric",
+                     with_dependencies=True, _seen=None):
+    """
+    Installe un mod et ses dépendances obligatoires.
+
+    Les dépendances comptent vraiment : la moitié des mods réclament Fabric API, et un mod installé
+    sans elle fait planter le jeu au démarrage avec un message qui ne désigne pas le coupable.
+    Le suivi des projets déjà traités évite les boucles quand deux mods se réclament mutuellement.
+    """
+    _seen = _seen if _seen is not None else set()
+    if project_id in _seen:
+        return []
+    _seen.add(project_id)
+
+    file_info = modrinth_best_file(project_id, mc_version, loader)
+    if not file_info:
+        raise OSError("aucune version compatible")
+
+    mods_dir.mkdir(parents=True, exist_ok=True)
+    _pooled_get(file_info["url"], mods_dir / file_info["filename"], file_info.get("size"))
+    installed = [file_info["filename"]]
+
+    if with_dependencies:
+        for dep in file_info["dependencies"]:
+            dep_id = dep.get("project_id")
+            if not dep_id or dep_id in _seen:
+                continue
+            try:
+                installed += modrinth_install(dep_id, mc_version, mods_dir, loader,
+                                              True, _seen)
+            except Exception:
+                # Une dépendance introuvable ne doit pas annuler l'installation du mod principal.
+                pass
+    return installed
+
+
+MODRINTH_CATEGORIES = [
+    ("", "Tout"),
+    ("optimization", "Performance"),
+    ("utility", "Utilitaires"),
+    ("adventure", "Aventure"),
+    ("decoration", "Décoration"),
+    ("library", "Bibliothèques"),
+    ("social", "Social"),
+    ("technology", "Technique"),
+]
 
 
 _pool = threading.local()
@@ -920,6 +1021,165 @@ def install_assets(game_dir: Path, version_json, progress=True, on_progress=None
 # ----------------------------------------------------------------------------------------------
 # Lancement
 # ----------------------------------------------------------------------------------------------
+
+SESSION_PROFILE = "https://sessionserver.mojang.com/session/minecraft/profile"
+
+
+def fetch_skin_png(uuid_with_dashes):
+    """
+    Récupère la peau du joueur.
+
+    On passe par le serveur de session officiel plutôt que par un service tiers de rendu d'avatar :
+    pas de dépendance à un site qui peut disparaître, et l'image obtenue est la peau complète, donc
+    on peut en découper ce qu'on veut. L'URL de la texture est planquée dans une propriété encodée
+    en base64, ce qui explique le détour.
+    """
+    uuid = uuid_with_dashes.replace("-", "")
+    status, profile = http_json(f"{SESSION_PROFILE}/{uuid}")
+    if status != 200:
+        return None
+    for prop in profile.get("properties", []):
+        if prop.get("name") != "textures":
+            continue
+        decoded = json.loads(base64.b64decode(prop["value"]).decode("utf-8"))
+        url = decoded.get("textures", {}).get("SKIN", {}).get("url")
+        if not url:
+            return None
+        req = urllib.request.Request(url, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.read()
+    return None
+
+
+def detect_java(explicit_path=""):
+    """
+    Trouve Java et lit sa version.
+
+    Cherche dans le PATH puis aux emplacements d'installation habituels sous Windows : un JDK
+    fraîchement installé n'est pas toujours dans le PATH, et l'utilisateur n'a aucune raison de
+    savoir qu'il doit l'y ajouter à la main.
+
+    @return (chemin, version majeure, message) — chemin vide si rien trouvé
+    """
+    candidates = []
+    if explicit_path:
+        candidates.append(explicit_path)
+    found = shutil.which("java")
+    if found:
+        candidates.append(found)
+
+    if sys.platform == "win32":
+        for root in (r"C:\Program Files\Java", r"C:\Program Files\Eclipse Adoptium",
+                     r"C:\Program Files\Microsoft\jdk", r"C:\Program Files\Zulu"):
+            base = Path(root)
+            if base.is_dir():
+                for entry in sorted(base.iterdir(), reverse=True):
+                    exe = entry / "bin" / "java.exe"
+                    if exe.exists():
+                        candidates.append(str(exe))
+
+    for candidate in candidates:
+        try:
+            out = subprocess.run([candidate, "-version"], capture_output=True, text=True,
+                                 timeout=20)
+            text = out.stderr + out.stdout
+            match = re.search(r'version "(\d+)', text)
+            if match:
+                return candidate, int(match.group(1)), text.splitlines()[0].strip()
+        except Exception:
+            continue
+    return "", 0, "Java introuvable"
+
+
+def read_server_list(game_dir: Path):
+    """
+    Lit servers.dat, la liste des serveurs enregistrés dans le jeu.
+
+    Format NBT non compressé. Un parseur complet serait excessif ici : on ne cherche que les
+    couples nom/adresse, donc on ne décode que les types rencontrés dans ce fichier.
+    """
+    path = game_dir / "servers.dat"
+    if not path.exists():
+        return []
+
+    data = path.read_bytes()
+    pos = 0
+
+    def read(fmt, size):
+        nonlocal pos
+        import struct
+        value = struct.unpack_from(fmt, data, pos)[0]
+        pos += size
+        return value
+
+    def read_string():
+        nonlocal pos
+        length = read(">H", 2)
+        text = data[pos:pos + length].decode("utf-8", "replace")
+        pos += length
+        return text
+
+    def skip_payload(tag):
+        nonlocal pos
+        sizes = {1: 1, 2: 2, 3: 4, 4: 8, 5: 4, 6: 8}
+        if tag in sizes:
+            pos += sizes[tag]
+        elif tag == 8:
+            read_string()
+        elif tag == 7:
+            pos += read(">i", 4)
+        elif tag == 11:
+            pos += read(">i", 4) * 4
+        elif tag == 12:
+            pos += read(">i", 4) * 8
+        elif tag == 9:
+            item_tag = read(">B", 1)
+            for _ in range(read(">i", 4)):
+                skip_payload(item_tag)
+        elif tag == 10:
+            skip_compound()
+
+    servers = []
+
+    def skip_compound():
+        nonlocal pos
+        current = {}
+        while pos < len(data):
+            tag = read(">B", 1)
+            if tag == 0:
+                break
+            name = read_string()
+            if tag == 8:
+                current[name] = read_string()
+            else:
+                skip_payload(tag)
+        if "ip" in current:
+            servers.append({"name": current.get("name", current["ip"]), "ip": current["ip"]})
+
+    try:
+        root_tag = read(">B", 1)
+        if root_tag != 10:
+            return []
+        read_string()
+        while pos < len(data):
+            tag = read(">B", 1)
+            if tag == 0:
+                break
+            read_string()
+            if tag == 9:
+                item_tag = read(">B", 1)
+                for _ in range(read(">i", 4)):
+                    if item_tag == 10:
+                        skip_compound()
+                    else:
+                        skip_payload(item_tag)
+            else:
+                skip_payload(tag)
+    except Exception:
+        # Fichier d'une version inconnue : on renvoie ce qu'on a pu lire plutôt que d'échouer.
+        pass
+    return servers
+
 
 def find_java(config: Config, required_major):
     if config.java:

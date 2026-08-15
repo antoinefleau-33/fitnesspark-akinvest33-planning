@@ -131,24 +131,27 @@ solo sans compte, mais **aucun serveur en ligne ne l'acceptera jamais** — c'es
 cause du `Failed to verify username`. Comme ton objectif est que rejoindre un serveur fonctionne,
 l'ajouter ne ferait que réintroduire le problème.
 
-## En faire un vrai exécutable
+## En faire un vrai exécutable autonome
 
-Le script se lance déjà directement :
+Double-clique sur **`Compiler-EXE.bat`**. Après 2 à 3 minutes, tu obtiens un `.exe` dans `dist/`
+qui fonctionne sur n'importe quel PC Windows, **même sans Python installé**.
 
-```bash
-chmod +x mclaunch.py
-./mclaunch.py play 26.2
-```
+Il pèse 15 à 20 Mo, et ce poids a une raison précise : il contient l'interpréteur Python et la
+bibliothèque graphique Tk.
 
-Pour un `.exe` Windows autonome, sans Python installé :
+### Sur le poids des fichiers
 
-```bash
-pip install pyinstaller
-pyinstaller --onefile --windowed --name MonLanceur gui.py
-```
+Les scripts `.py` font quelques centaines de kilo-octets. Ce n'est pas un signe de pauvreté
+fonctionnelle — c'est que Python et Tk sont déjà sur la machine et n'ont pas à être redistribués.
 
-Le binaire arrive dans `dist/`. Note qu'un exécutable PyInstaller est souvent signalé à tort par
-les antivirus — c'est un faux positif classique de PyInstaller, pas un problème de ce code.
+Lunar Client pèse 55 Mo parce qu'il embarque **Electron**, c'est-à-dire un navigateur Chromium
+complet plus Node.js, uniquement pour afficher son interface. Ces 55 Mo sont un moteur de rendu,
+pas des fonctionnalités.
+
+Le poids d'un programme mesure ce qu'il embarque avec lui, jamais ce qu'il sait faire.
+
+Note : Windows Defender signale souvent à tort les exécutables produits par PyInstaller. C'est un
+faux positif bien connu de l'outil, pas un problème de ce code.
 
 ## Avec les mods de performance
 

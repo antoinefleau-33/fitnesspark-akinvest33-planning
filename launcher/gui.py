@@ -16,6 +16,7 @@ import subprocess
 import sys
 import threading
 import tkinter as tk
+import urllib.request
 import webbrowser
 from pathlib import Path
 from tkinter import filedialog, messagebox
@@ -23,8 +24,9 @@ from tkinter import filedialog, messagebox
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import mclaunch as core
-from ui import (Button, Field, NavItem, ProgressBar, ScrollFrame, Slider, T, Toggle,
-                bind_all_children, font, make_icon, read_mod_info, round_rect)
+from ui import (Button, Field, NavItem, ProgressBar, ScrollFrame, SlimScrollbar, Slider,
+                T, Toggle, bind_all_children, font, make_head_icon, make_icon,
+                read_mod_info, round_rect)
 
 WINDOW_W, WINDOW_H = 1060, 680
 
@@ -54,6 +56,9 @@ class Launcher(tk.Tk):
         self._queue = queue.Queue()
         self._busy = False
         self._icons = []          # références gardées : Tk libère les images non référencées
+        self._skin_image = None
+        self._skin_big = None
+        self._skin_loaded = None
         self.pages = {}
 
         self._build()
@@ -117,8 +122,9 @@ class Launcher(tk.Tk):
         self.content = tk.Frame(self, bg=T.BG_DEEP)
         self.content.pack(side="left", fill="both", expand=True)
 
-        for key, cls in (("play", PlayPage), ("mods", ModsPage),
-                         ("settings", SettingsPage), ("account", AccountPage)):
+        for key, cls in (("play", PlayPage), ("mods", ModsPage), ("browse", BrowsePage),
+                         ("console", ConsolePage), ("settings", SettingsPage),
+                         ("account", AccountPage)):
             page = cls(self.content, self)
             self.pages[key] = page
 
@@ -142,7 +148,9 @@ class Launcher(tk.Tk):
 
         self.nav = {}
         for key, icon, label in (("play", "▶", "Jouer"),
-                                 ("mods", "🧩", "Mods"),
+                                 ("mods", "🧩", "Mes mods"),
+                                 ("browse", "🔍", "Découvrir"),
+                                 ("console", "🖥", "Console"),
                                  ("settings", "⚙", "Paramètres"),
                                  ("account", "👤", "Compte")):
             item = NavItem(self.sidebar, icon, label, lambda k=key: self.show_page(k))
@@ -186,9 +194,37 @@ class Launcher(tk.Tk):
 
     # -- État partagé ----------------------------------------------------------------------
 
+    def load_skin(self):
+        """Charge la tête du joueur en tâche de fond ; l'initiale sert de repli."""
+        uuid = self.account.data.get("uuid")
+        if not uuid or self._skin_loaded == uuid:
+            return
+        self._skin_loaded = uuid
+
+        def work():
+            return core.fetch_skin_png(uuid)
+
+        def done(png):
+            if not png:
+                return
+            head = make_head_icon(png, scale=3)
+            if head:
+                self._skin_image = head
+                self.avatar.delete("all")
+                self.avatar.create_image(13, 13, image=head)
+            big = make_head_icon(png, scale=7)
+            if big:
+                self._skin_big = big
+                page = self.pages.get("account")
+                if page:
+                    page.on_show()
+
+        threading.Thread(target=lambda: self.post(lambda: done(work())), daemon=True).start()
+
     def refresh_account_chip(self):
         name = self.account.data.get("name")
         if name:
+            self.load_skin()
             self.account_name.configure(text=name)
             self.account_state.configure(
                 text="Connecté" if self.account.valid else "Session à renouveler",
@@ -383,6 +419,32 @@ class PlayPage(Page):
             row.set_selected(name == version)
         self.status_label.configure(text=f"Prêt : {core.playable_name(version)}")
 
+    def _on_game_exit(self, code, console):
+        """
+        Fin du jeu. Un code de sortie non nul signale un crash : on le dit clairement et on ouvre
+        la console, plutôt que de laisser l\'utilisateur devant une fenêtre qui a juste disparu.
+        """
+        if code == 0:
+            console.append("Le jeu s\'est fermé normalement.", "launcher")
+            console.set_state("Jeu fermé")
+            self.status_label.configure(text="Jeu fermé.", fg=T.TEXT_DIM)
+            return
+
+        console.append(f"Le jeu s\'est arrêté avec le code {code}.", "error")
+        console.set_state(f"Arrêt anormal (code {code})", T.RED)
+        self.status_label.configure(text=f"Le jeu a planté (code {code})", fg=T.RED)
+
+        text = console.text.get("1.0", "end")
+        if "NoSuchFileException" in text and "assets" in text:
+            console.append("→ Un fichier de ressource manque. Clique sur « Réparer ».", "launcher")
+            self.status_label.configure(text="Fichier manquant — clique sur Réparer", fg=T.AMBER)
+        elif "UnsupportedClassVersionError" in text:
+            console.append("→ Ta version de Java est trop ancienne. "
+                           "Minecraft 26.2 exige Java 25.", "launcher")
+        elif "OutOfMemoryError" in text:
+            console.append("→ Mémoire insuffisante. Augmente-la dans les Paramètres.", "launcher")
+        self.app.show_page("console")
+
     def install_dialog(self):
         InstallDialog(self.app, self)
 
@@ -458,13 +520,34 @@ class PlayPage(Page):
                 game_dir, _json.loads(path.read_text(encoding="utf-8")))
             command = core.build_command(self.app.cfg, self.app.account, game_dir, version_json)
             game_dir.mkdir(parents=True, exist_ok=True)
-            return subprocess.Popen(command, cwd=str(game_dir))
+
+            console = self.app.pages["console"]
+            self.app.post(lambda: (console.clear(),
+                                   console.append(f"Lancement de {version}", "launcher"),
+                                   console.set_state("Démarrage...", T.AMBER)))
+
+            # Sortie redirigée vers la console du lanceur. Elle DOIT être lue en continu :
+            # un tube non vidé se remplit et bloque le jeu au bout de quelques dizaines de Ko.
+            process = subprocess.Popen(
+                command, cwd=str(game_dir),
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, encoding="utf-8", errors="replace", bufsize=1)
+
+            def pump():
+                for line in process.stdout:
+                    self.app.post(lambda l=line.rstrip(): console.append(l))
+                code = process.wait()
+                self.app.post(lambda: self._on_game_exit(code, console))
+
+            threading.Thread(target=pump, daemon=True).start()
+            return process
 
         def done(_process):
             self.progress.stop_pulse()
             self.progress.set(1.0)
             self.play_btn.set_enabled(True)
-            self.status_label.configure(text="Jeu lancé.", fg=T.GREEN)
+            self.status_label.configure(text="Jeu en cours...", fg=T.GREEN)
+            self.app.pages["console"].set_state("Jeu en cours", T.GREEN)
             self.app.refresh_account_chip()
 
         def failed(message):
@@ -782,8 +865,8 @@ class ModRow(tk.Frame):
         description = info["description"] or jar_path.name
         if len(description) > 96:
             description = description[:93] + "..."
-        tk.Label(texts, text=description, bg=T.BG_CARD, fg=T.TEXT_DIM,
-                 font=font(8), anchor="w").pack(fill="x")
+        tk.Label(texts, text=description, bg=T.BG_CARD, fg=T.TEXT_DIM, font=font(8),
+                 anchor="w", wraplength=560).pack(fill="x")
 
         Button(inner, "✕", command=self.delete, width=34, height=30, style="ghost",
                radius=7, bg=T.BG_CARD).pack(side="right", padx=(10, 0))
@@ -894,6 +977,295 @@ class PerfPackDialog(tk.Toplevel):
 
 
 # ----------------------------------------------------------------------------------------------
+# Page « Découvrir » — recherche de mods sur Modrinth
+# ----------------------------------------------------------------------------------------------
+
+class BrowsePage(Page):
+
+    def __init__(self, parent, app):
+        super().__init__(parent, app)
+        self.header("Découvrir des mods", "Cherche parmi des milliers de mods et installe-les "
+                                          "en un clic, dépendances comprises.")
+        self.offset = 0
+        self.category = ""
+        self.last_query = ""
+
+        bar = tk.Frame(self, bg=T.BG_DEEP)
+        bar.pack(fill="x", padx=34, pady=(0, 12))
+
+        box = tk.Frame(bar, bg=T.BG_INPUT, highlightthickness=1,
+                       highlightbackground=T.BORDER, highlightcolor=T.ACCENT)
+        box.pack(side="left", fill="x", expand=True)
+        self.query = tk.StringVar()
+        entry = tk.Entry(box, textvariable=self.query, bg=T.BG_INPUT, fg=T.TEXT,
+                         insertbackground=T.ACCENT, relief="flat", font=font(10), bd=0)
+        entry.pack(fill="x", padx=12, pady=10)
+        entry.bind("<Return>", lambda e: self.search())
+
+        Button(bar, "Chercher", command=self.search, width=120, bg=T.BG_DEEP).pack(
+            side="left", padx=(10, 0))
+
+        cats = tk.Frame(self, bg=T.BG_DEEP)
+        cats.pack(fill="x", padx=34, pady=(0, 10))
+        self.cat_buttons = {}
+        for value, label in core.MODRINTH_CATEGORIES:
+            b = Button(cats, label, command=lambda v=value: self.set_category(v),
+                       width=max(62, len(label) * 8 + 16), height=28, style="ghost",
+                       radius=6, bg=T.BG_DEEP)
+            b.pack(side="left", padx=(0, 5))
+            self.cat_buttons[value] = b
+
+        self.info = tk.Label(self, text="", bg=T.BG_DEEP, fg=T.TEXT_DIM,
+                             font=font(9), anchor="w")
+        self.info.pack(fill="x", padx=34, pady=(0, 6))
+
+        self.results = ScrollFrame(self, bg=T.BG_DEEP)
+        self.results.pack(fill="both", expand=True, padx=34, pady=(0, 20))
+
+    def mc_version(self):
+        version = self.app.cfg.data.get("last_version", "")
+        return version.split("-")[-1] if version else ""
+
+    def on_show(self):
+        if not self.results.body.winfo_children():
+            self.search()
+
+    def set_category(self, value):
+        self.category = value
+        self.offset = 0
+        self.search(keep_offset=True)
+
+    def search(self, keep_offset=False):
+        mc = self.mc_version()
+        if not mc:
+            self.info.configure(text="Installe d\'abord une version pour voir les mods "
+                                     "compatibles.", fg=T.AMBER)
+            return
+        if not keep_offset:
+            self.offset = 0
+        self.last_query = self.query.get().strip()
+        self.info.configure(text="Recherche...", fg=T.TEXT_DIM)
+
+        query, category, offset = self.last_query, self.category, self.offset
+
+        def work():
+            return core.modrinth_search(query, mc, limit=20, offset=offset,
+                                        category=category or None)
+
+        def done(result):
+            hits, total = result
+            self.results.clear()
+            self.app._icons.clear()
+            if not hits:
+                self.info.configure(text=f"Aucun mod trouvé pour Minecraft {mc}.", fg=T.TEXT_DIM)
+                return
+            self.info.configure(
+                text=f"{total} mods compatibles Minecraft {mc}" +
+                     (f" — résultats {offset + 1} à {offset + len(hits)}" if total > 20 else ""),
+                fg=T.TEXT_DIM)
+            for hit in hits:
+                ModrinthRow(self.results.body, self.app, hit, mc).pack(fill="x", pady=3)
+
+            if total > offset + len(hits):
+                more = tk.Frame(self.results.body, bg=T.BG_DEEP)
+                more.pack(fill="x", pady=10)
+                Button(more, "Voir plus", command=self.next_page, width=140,
+                       style="ghost", bg=T.BG_DEEP).pack()
+
+        def failed(message):
+            self.info.configure(text=f"Recherche impossible : {message}", fg=T.RED)
+
+        self.app.run_async(work, done, failed)
+
+    def next_page(self):
+        self.offset += 20
+        self.search(keep_offset=True)
+
+
+class ModrinthRow(tk.Frame):
+    """Résultat de recherche : icône, titre, description, téléchargements, bouton d\'installation."""
+
+    def __init__(self, parent, app, hit, mc_version):
+        super().__init__(parent, bg=T.BG_CARD)
+        self.app = app
+        self.hit = hit
+        self.mc = mc_version
+
+        inner = tk.Frame(self, bg=T.BG_CARD)
+        inner.pack(fill="x", padx=16, pady=12)
+
+        holder = tk.Frame(inner, bg=T.BG_CARD, width=44, height=44)
+        holder.pack(side="left")
+        holder.pack_propagate(False)
+        placeholder = tk.Canvas(holder, width=44, height=44, bg=T.BG_CARD, highlightthickness=0)
+        placeholder.pack()
+        round_rect(placeholder, 0, 0, 44, 44, 9, fill=T.BG_HOVER, outline="")
+        placeholder.create_text(22, 22, text=hit["title"][:1].upper(),
+                                fill=T.TEXT_DIM, font=font(15, "bold"))
+        self._load_icon(holder, hit.get("icon_url"))
+
+        texts = tk.Frame(inner, bg=T.BG_CARD)
+        texts.pack(side="left", padx=(14, 10), fill="x", expand=True)
+
+        title_row = tk.Frame(texts, bg=T.BG_CARD)
+        title_row.pack(fill="x")
+        tk.Label(title_row, text=hit["title"], bg=T.BG_CARD, fg=T.TEXT,
+                 font=font(11, "bold"), anchor="w").pack(side="left")
+        downloads = hit.get("downloads", 0)
+        shown = f"{downloads / 1_000_000:.1f} M" if downloads >= 1_000_000 else f"{downloads:,}"
+        tk.Label(title_row, text=f"↓ {shown}", bg=T.BG_CARD, fg=T.TEXT_FAINT,
+                 font=font(8)).pack(side="left", padx=(10, 0))
+
+        description = (hit.get("description") or "").replace("\n", " ")
+        if len(description) > 105:
+            description = description[:102] + "..."
+        # wraplength borne la largeur demandée par le Label. Sans lui, une description longue
+        # élargit toute la ligne et fait sortir le bouton d'installation de la zone visible.
+        tk.Label(texts, text=description, bg=T.BG_CARD, fg=T.TEXT_DIM, font=font(8),
+                 anchor="w", justify="left", wraplength=560).pack(fill="x", pady=(2, 0))
+
+        self.status = tk.Label(inner, text="", bg=T.BG_CARD, fg=T.GREEN, font=font(8))
+        self.status.pack(side="right", padx=(8, 0))
+        self.button = Button(inner, "Installer", command=self.install, width=110,
+                             height=34, radius=7, bg=T.BG_CARD)
+        self.button.pack(side="right")
+
+    def _load_icon(self, holder, url):
+        if not url or not url.lower().endswith(".png"):
+            return
+
+        def work():
+            req = urllib.request.Request(url, headers={"User-Agent": core.UA})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                return r.read()
+
+        def done(data):
+            image = make_icon(data, target=44)
+            if image:
+                self.app._icons.append(image)
+                for child in holder.winfo_children():
+                    child.destroy()
+                tk.Label(holder, image=image, bg=T.BG_CARD).pack(expand=True)
+
+        threading.Thread(
+            target=lambda: self._safe_icon(work, done), daemon=True).start()
+
+    def _safe_icon(self, work, done):
+        try:
+            data = work()
+        except Exception:
+            return
+        self.app.post(lambda: done(data))
+
+    def install(self):
+        mods_dir = self.app.cfg.game_dir / "mods"
+        if not mods_dir.parent.is_dir():
+            self.app.toast("Installe d\'abord une version avec Fabric.", error=True)
+            return
+        self.button.set_enabled(False)
+        self.status.configure(text="...", fg=T.TEXT_DIM)
+        project = self.hit["project_id"]
+        mc = self.mc
+
+        def work():
+            return core.modrinth_install(project, mc, mods_dir)
+
+        def done(files):
+            self.status.configure(
+                text="Installé" if len(files) == 1 else f"Installé + {len(files) - 1} dép.",
+                fg=T.GREEN)
+            self.app.pages["mods"].refresh()
+
+        def failed(message):
+            self.button.set_enabled(True)
+            self.status.configure(text="Échec", fg=T.RED)
+            self.app.toast(message, error=True)
+
+        self.app.run_async(work, done, failed)
+
+
+# ----------------------------------------------------------------------------------------------
+# Page « Console » — sortie du jeu
+# ----------------------------------------------------------------------------------------------
+
+class ConsolePage(Page):
+    """
+    Affiche la sortie du jeu en direct.
+
+    C\'est ce qui manquait quand le jeu plantait : le message d\'erreur partait dans une sortie
+    invisible, et il ne restait qu\'une fenêtre qui se ferme. Ici, la cause est lisible tout de
+    suite, et les lignes d\'erreur sont colorées.
+    """
+
+    MAX_LINES = 4000
+
+    def __init__(self, parent, app):
+        super().__init__(parent, app)
+        self.header("Console", "Sortie du jeu. Utile quand quelque chose ne va pas.")
+
+        bar = tk.Frame(self, bg=T.BG_DEEP)
+        bar.pack(fill="x", padx=34, pady=(0, 10))
+        Button(bar, "Vider", command=self.clear, width=100, style="ghost",
+               bg=T.BG_DEEP).pack(side="left")
+        Button(bar, "Copier tout", command=self.copy_all, width=130, style="ghost",
+               bg=T.BG_DEEP).pack(side="left", padx=8)
+        self.state_label = tk.Label(bar, text="Jeu non démarré", bg=T.BG_DEEP,
+                                    fg=T.TEXT_DIM, font=font(9))
+        self.state_label.pack(side="left", padx=14)
+
+        wrapper = tk.Frame(self, bg=T.BG_PANEL)
+        wrapper.pack(fill="both", expand=True, padx=34, pady=(0, 20))
+
+        self.text = tk.Text(wrapper, bg=T.BG_INPUT, fg=T.TEXT_DIM, relief="flat",
+                            font=("Consolas" if sys.platform == "win32" else "DejaVu Sans Mono", 9),
+                            insertbackground=T.ACCENT, bd=0, wrap="none", state="disabled",
+                            padx=12, pady=10,
+                            highlightthickness=0)   # sinon Tk dessine un cadre clair
+        scroll = SlimScrollbar(wrapper, self.text.yview, bg=T.BG_PANEL)
+        scroll.pack(side="right", fill="y", pady=6, padx=(0, 4))
+        self.text.pack(side="left", fill="both", expand=True)
+        self.text.configure(yscrollcommand=scroll.set)
+
+        self.text.tag_configure("error", foreground=T.RED)
+        self.text.tag_configure("warn", foreground=T.AMBER)
+        self.text.tag_configure("info", foreground=T.TEXT_DIM)
+        self.text.tag_configure("launcher", foreground=T.ACCENT)
+
+    def append(self, line, tag=None):
+        if tag is None:
+            lowered = line.lower()
+            if "error" in lowered or "exception" in lowered or "caused by" in lowered:
+                tag = "error"
+            elif "warn" in lowered:
+                tag = "warn"
+            else:
+                tag = "info"
+
+        self.text.configure(state="normal")
+        self.text.insert("end", line + "\n", tag)
+        # Fenêtre glissante : une session longue produit des dizaines de milliers de lignes, et
+        # tout garder finit par ralentir l\'affichage.
+        count = int(self.text.index("end-1c").split(".")[0])
+        if count > self.MAX_LINES:
+            self.text.delete("1.0", f"{count - self.MAX_LINES}.0")
+        self.text.see("end")
+        self.text.configure(state="disabled")
+
+    def set_state(self, text, color=T.TEXT_DIM):
+        self.state_label.configure(text=text, fg=color)
+
+    def clear(self):
+        self.text.configure(state="normal")
+        self.text.delete("1.0", "end")
+        self.text.configure(state="disabled")
+
+    def copy_all(self):
+        self.clipboard_clear()
+        self.clipboard_append(self.text.get("1.0", "end-1c"))
+        self.set_state("Copié dans le presse-papiers.", T.GREEN)
+
+
+# ----------------------------------------------------------------------------------------------
 # Page « Paramètres »
 # ----------------------------------------------------------------------------------------------
 
@@ -948,6 +1320,14 @@ class SettingsPage(Page):
                                "Minecraft 26.2 exige Java 25.")
         self.java.pack(fill="x", pady=(18, 0))
 
+        java_row = tk.Frame(inner2, bg=T.BG_PANEL)
+        java_row.pack(fill="x", pady=(10, 0))
+        Button(java_row, "Détecter Java", command=self.detect_java, width=140,
+               style="ghost", bg=T.BG_PANEL).pack(side="left")
+        self.java_state = tk.Label(java_row, text="", bg=T.BG_PANEL, fg=T.TEXT_DIM,
+                                   font=font(9), anchor="w")
+        self.java_state.pack(side="left", padx=14, fill="x", expand=True)
+
         row = tk.Frame(body, bg=T.BG_DEEP)
         row.pack(fill="x", pady=(4, 18))
         Button(row, "Enregistrer", command=self.save, width=140, bg=T.BG_DEEP).pack(side="left")
@@ -984,7 +1364,33 @@ class SettingsPage(Page):
         self.client_id.set(cfg.client_id)
         self.game_dir.set(str(cfg.game_dir))
         self.java.set(cfg.java)
+        self.java_state.configure(text="")
         self.saved.configure(text="")
+
+    def detect_java(self):
+        """Cherche Java dans le PATH puis aux emplacements d\'installation habituels."""
+        self.java_state.configure(text="Recherche...", fg=T.TEXT_DIM)
+
+        def work():
+            return core.detect_java(self.java.get())
+
+        def done(result):
+            path, major, _ = result
+            if not path:
+                self.java_state.configure(text="Java introuvable — installe un JDK 25.", fg=T.RED)
+                if messagebox.askyesno("Java manquant",
+                                       "Java est introuvable.\n\n"
+                                       "Ouvrir la page de téléchargement d\'Adoptium ?"):
+                    webbrowser.open("https://adoptium.net/temurin/releases/?version=25")
+                return
+            self.java.set(path)
+            if major < 25:
+                self.java_state.configure(
+                    text=f"Java {major} trouvé, mais 26.2 exige Java 25.", fg=T.AMBER)
+            else:
+                self.java_state.configure(text=f"Java {major} — parfait.", fg=T.GREEN)
+
+        self.app.run_async(work, done)
 
     def update_launcher(self):
         """Récupère la dernière version publiée du lanceur et remplace les fichiers locaux."""
@@ -1065,10 +1471,14 @@ class AccountPage(Page):
         if name:
             top = tk.Frame(self.inner, bg=T.BG_PANEL)
             top.pack(fill="x")
-            avatar = tk.Canvas(top, width=54, height=54, bg=T.BG_PANEL, highlightthickness=0)
+            avatar = tk.Canvas(top, width=56, height=56, bg=T.BG_PANEL, highlightthickness=0)
             avatar.pack(side="left")
-            round_rect(avatar, 0, 0, 54, 54, 12, fill=T.ACCENT, outline="")
-            avatar.create_text(27, 27, text=name[0].upper(), fill="#FFFFFF", font=font(20, "bold"))
+            if self.app._skin_big is not None:
+                avatar.create_image(28, 28, image=self.app._skin_big)
+            else:
+                round_rect(avatar, 0, 0, 56, 56, 12, fill=T.ACCENT, outline="")
+                avatar.create_text(28, 28, text=name[0].upper(), fill="#FFFFFF",
+                                   font=font(20, "bold"))
 
             texts = tk.Frame(top, bg=T.BG_PANEL)
             texts.pack(side="left", padx=(16, 0))

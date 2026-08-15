@@ -23,7 +23,7 @@ if not exist "%DEST%" mkdir "%DEST%"
 
 REM PowerShell est present sur tout Windows 10/11 : pas besoin de Python pour
 REM cette etape, ce qui permet d'installer meme si Python n'est pas encore la.
-for %%F in (mclaunch.py gui.py ui.py Lancer.bat README.md) do (
+for %%F in (mclaunch.py gui.py ui.py Lancer.bat Compiler-EXE.bat README.md) do (
     echo   Telechargement de %%F...
     powershell -NoProfile -Command "$ProgressPreference='SilentlyContinue'; try { Invoke-WebRequest -Uri '%BASE%/%%F' -OutFile '%DEST%\%%F' -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} } catch { Write-Host '   ECHEC :' $_.Exception.Message; exit 1 }"
     if errorlevel 1 goto erreur

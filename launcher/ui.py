@@ -282,6 +282,10 @@ class SlimScrollbar(tk.Canvas):
         height = self.winfo_height()
         if height <= 1:
             return
+        # Rien à faire défiler : pastille invisible plutôt que barre pleine.
+        if self._first <= 0.0 and self._last >= 1.0:
+            self.coords(self._thumb, *([0] * 24))
+            return
         top = self._first * height
         bottom = max(self._last * height, top + 24)   # pastille jamais plus petite que 24 px
         w = self._width
@@ -371,10 +375,10 @@ class ScrollFrame(tk.Frame):
         self.bind("<Leave>", lambda e: self._bind_wheel(False))
 
     def _on_scroll(self, first, last):
-        # Barre masquée quand tout tient à l'écran : moins de bruit visuel.
-        if float(first) <= 0.0 and float(last) >= 1.0:
-            self.scrollbar.pack_forget()
-        else:
+        # L'ascenseur garde toujours sa place, même quand il n'y a rien à faire défiler : le
+        # montrer et le cacher change la largeur disponible, et les enfants déjà positionnés se
+        # retrouvent rognés — c'est ce qui coupait les boutons en bout de ligne.
+        if not self.scrollbar.winfo_ismapped():
             self.scrollbar.pack(side="right", fill="y")
         self.scrollbar.set(first, last)
 
@@ -493,6 +497,32 @@ def read_mod_info(jar_path):
     except Exception:
         pass
     return info
+
+
+def make_head_icon(skin_png, scale=4):
+    """
+    Découpe la tête dans une peau Minecraft et l'agrandit.
+
+    Une peau est une planche de textures : la face avant de la tête occupe le carré (8,8)-(16,16),
+    et le « second calque » (chapeau, cheveux) le carré (40,8)-(48,16). On superpose les deux, sinon
+    beaucoup de joueurs apparaissent chauves.
+
+    Agrandissement par `zoom`, qui duplique les pixels sans les lisser — c'est exactement le rendu
+    voulu pour du pixel art ; un lissage donnerait une bouillie floue.
+    """
+    try:
+        skin = tk.PhotoImage(data=base64.b64encode(skin_png))
+        head = tk.PhotoImage(width=8, height=8)
+        head.tk.call(head, "copy", skin, "-from", 8, 8, 16, 16, "-to", 0, 0)
+        # Le calque supérieur n'existe pas sur toutes les peaux : on l'ajoute au mieux.
+        try:
+            head.tk.call(head, "copy", skin, "-from", 40, 8, 48, 16, "-to", 0, 0,
+                         "-compositingrule", "overlay")
+        except tk.TclError:
+            pass
+        return head.zoom(scale, scale)
+    except Exception:
+        return None
 
 
 def make_icon(png_bytes, target=34):
