@@ -443,6 +443,10 @@ class PlayPage(Page):
                            "Minecraft 26.2 exige Java 25.", "launcher")
         elif "OutOfMemoryError" in text:
             console.append("→ Mémoire insuffisante. Augmente-la dans les Paramètres.", "launcher")
+        elif "OpenAL" in text or "Failed to start sound engine" in text:
+            console.append("→ Le moteur audio n\'a pas démarré : aucun périphérique de sortie "
+                           "utilisable. Vérifie ton périphérique audio par défaut dans Windows.",
+                           "launcher")
         self.app.show_page("console")
 
     def install_dialog(self):
@@ -1209,6 +1213,8 @@ class ConsolePage(Page):
                bg=T.BG_DEEP).pack(side="left")
         Button(bar, "Copier tout", command=self.copy_all, width=130, style="ghost",
                bg=T.BG_DEEP).pack(side="left", padx=8)
+        Button(bar, "Diagnostic audio", command=self.check_sound, width=160, style="ghost",
+               bg=T.BG_DEEP).pack(side="left")
         self.state_label = tk.Label(bar, text="Jeu non démarré", bg=T.BG_DEEP,
                                     fg=T.TEXT_DIM, font=font(9))
         self.state_label.pack(side="left", padx=14)
@@ -1230,6 +1236,25 @@ class ConsolePage(Page):
         self.text.tag_configure("warn", foreground=T.AMBER)
         self.text.tag_configure("info", foreground=T.TEXT_DIM)
         self.text.tag_configure("launcher", foreground=T.ACCENT)
+
+    SOUND_OK = "Sound engine started"
+
+    def check_sound(self):
+        """
+        Dit si le moteur audio a demarré. Minecraft n'arrête PAS le jeu quand le son échoue : il
+        journalise et continue en silence. Sans regarder le log, on ne peut pas distinguer « pas
+        de son parce que rien ne joue » de « le moteur audio est mort au démarrage ».
+        """
+        text = self.text.get("1.0", "end")
+        if self.SOUND_OK in text:
+            self.append("→ Le moteur audio a bien démarré. Si tu n\'entends rien, regarde le "
+                        "volume dans Options du jeu, puis le mélangeur Windows.", "launcher")
+            return True
+        if "OpenAL" in text or "SoundEngine" in text or "audio" in text.lower():
+            self.append("→ Le moteur audio a signalé un problème (lignes ci-dessus).", "launcher")
+            return False
+        self.append("→ Aucune trace de démarrage du moteur audio dans ce journal.", "launcher")
+        return False
 
     def append(self, line, tag=None):
         if tag is None:

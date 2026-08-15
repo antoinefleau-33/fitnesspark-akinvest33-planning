@@ -37,7 +37,7 @@ import zipfile
 from pathlib import Path
 
 APP_NAME = "poclauncher"
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.0.1"
 
 # La console Windows utilise encore cp1252 par défaut dans certaines configurations : sans ça, le
 # moindre accent fait planter le script sur un UnicodeEncodeError, ce qui donne l'impression que
@@ -843,6 +843,15 @@ def library_url(lib):
     return f"{base.rstrip('/')}/{group.replace('.', '/')}/{artifact_id}/{version}/{artifact_id}-{version}.jar"
 
 
+def natives_subdirs(version_json):
+    """Sous-dossiers de natives/ référencés par les arguments JVM de cette version."""
+    found = set()
+    for arg in flatten_arguments(version_json.get("arguments", {}).get("jvm", [])):
+        for match in re.finditer(r"\$\{natives_directory\}[/\\]([\w.-]+)", arg):
+            found.add(match.group(1))
+    return found or {"java", "jna", "lwjgl", "netty"}
+
+
 def install_version(game_dir: Path, version_json, progress=True, on_progress=None):
     """@param on_progress  fonction (fraction 0..1, libellé) appelée pendant le travail."""
     def report(fraction, label):
@@ -850,10 +859,13 @@ def install_version(game_dir: Path, version_json, progress=True, on_progress=Non
             on_progress(fraction, label)
     version_id = version_json["id"]
     natives_dir = game_dir / "versions" / version_id / "natives"
-    # 26.2 attend ces sous-dossiers : LWJGL et JNA y extraient eux-mêmes leurs bibliothèques
-    # natives depuis les jars du classpath. Plus besoin de les dépaqueter à la main comme avant.
-    for sub in ("java", "jna", "lwjgl"):
+    # Les sous-dossiers sont DÉDUITS des arguments JVM au lieu d'être écrits en dur : 26.2 en
+    # attend quatre (java, jna, lwjgl, netty) et la liste change d'une version à l'autre. En
+    # coder une liste fixe, c'est se retrouver avec un dossier manquant à la version suivante,
+    # et une bibliothèque native qui échoue à s'extraire sans message clair.
+    for sub in natives_subdirs(version_json):
         (natives_dir / sub).mkdir(parents=True, exist_ok=True)
+    natives_dir.mkdir(parents=True, exist_ok=True)
 
     # Client jar
     client = version_json.get("downloads", {}).get("client")
