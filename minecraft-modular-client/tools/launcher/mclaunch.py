@@ -282,17 +282,59 @@ class Account:
         return bool(self.data.get("mc_token")) and time.time() < self.data.get("expires_at", 0)
 
 
-def device_code_login(client_id):
+def device_code_request(client_id):
     """
-    Flux « device code » : l'utilisateur ouvre une page et tape un code. On l'a préféré au flux
-    par redirection parce qu'il ne demande ni serveur web local, ni navigateur intégré — et donc
-    aucune manipulation d'URL de redirection, source classique d'échecs de configuration Azure.
+    Première moitié du flux « device code » : demande le code à afficher.
+
+    Séparé de l'attente pour que l'interface graphique puisse afficher le code immédiatement,
+    puis attendre dans un fil séparé sans figer la fenêtre.
+
+    Flux choisi plutôt que la redirection navigateur : il ne demande ni serveur web local, ni
+    URI de redirection à configurer dans Azure — la source d'échec la plus courante.
     """
     status, resp = http_json(MS_DEVICE_CODE,
                              data={"client_id": client_id, "scope": "XboxLive.signin offline_access"},
                              headers={"Content-Type": "application/x-www-form-urlencoded"})
     if status != 200:
         raise AuthError(f"Azure a refusé la demande : {short_azure_error(resp)}")
+    return resp
+
+
+def device_code_wait(client_id, resp, should_cancel=None, on_tick=None):
+    """Seconde moitié : attend que l'utilisateur valide dans son navigateur."""
+    interval = int(resp.get("interval", 5))
+    deadline = time.time() + int(resp.get("expires_in", 900))
+
+    while time.time() < deadline:
+        if should_cancel and should_cancel():
+            raise AuthError("connexion annulée")
+        time.sleep(interval)
+        status, token = http_json(
+            MS_TOKEN,
+            data={"grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                  "client_id": client_id, "device_code": resp["device_code"]},
+            headers={"Content-Type": "application/x-www-form-urlencoded"})
+        error = token.get("error")
+        if error == "authorization_pending":
+            if on_tick:
+                on_tick(int(deadline - time.time()))
+            continue
+        if error == "slow_down":
+            interval += 5
+            continue
+        if error == "expired_token":
+            raise AuthError("le code a expiré, recommence")
+        if error == "access_denied":
+            raise AuthError("connexion refusée dans le navigateur")
+        if error:
+            raise AuthError(f"{error} : {token.get('error_description', '')}")
+        return token
+    raise AuthError("délai dépassé")
+
+
+def device_code_login(client_id):
+    """Version console : affiche le code puis attend."""
+    resp = device_code_request(client_id)
 
     # Encadré en ASCII pur : c'est l'information que l'utilisateur DOIT pouvoir lire, et les
     # caractères de dessin Unicode s'affichent en carrés dans certaines consoles Windows.
@@ -304,32 +346,10 @@ def device_code_login(client_id):
     print()
     print("  En attente de la validation...", end="", flush=True)
 
-    interval = int(resp.get("interval", 5))
-    deadline = time.time() + int(resp.get("expires_in", 900))
-
-    while time.time() < deadline:
-        time.sleep(interval)
-        status, token = http_json(
-            MS_TOKEN,
-            data={"grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-                  "client_id": client_id, "device_code": resp["device_code"]},
-            headers={"Content-Type": "application/x-www-form-urlencoded"})
-        error = token.get("error")
-        if error == "authorization_pending":
-            print(".", end="", flush=True)
-            continue
-        if error == "slow_down":
-            interval += 5
-            continue
-        if error == "expired_token":
-            raise AuthError("le code a expiré, relance la commande")
-        if error == "access_denied":
-            raise AuthError("connexion refusée dans le navigateur")
-        if error:
-            raise AuthError(f"{error} : {token.get('error_description', '')}")
-        print(" OK")
-        return token
-    raise AuthError("délai dépassé")
+    token = device_code_wait(client_id, resp,
+                             on_tick=lambda _: print(".", end="", flush=True))
+    print(" OK")
+    return token
 
 
 def refresh_ms_token(client_id, refresh_token):
@@ -378,13 +398,19 @@ def xbox_chain(ms_access_token):
     return mc["access_token"], int(mc.get("expires_in", 86400)), xuid
 
 
-def ensure_logged_in(config: Config, account: Account, interactive=True):
+def ensure_logged_in(config: Config, account: Account, interactive=True, login_flow=None):
+    """
+    @param login_flow  fonction (client_id) -> jeton, pour qu'une interface graphique affiche le
+                       code à sa façon. Par défaut, la version console.
+    """
     if not config.client_id:
         raise AuthError("aucun identifiant d'application Azure configuré. "
-                        "Lance d'abord : mclaunch.py setup")
+                        "Configure-le d'abord dans les paramètres.")
 
     if account.valid:
         return account
+
+    flow = login_flow or device_code_login
 
     if account.data.get("ms_refresh_token"):
         try:
@@ -392,11 +418,11 @@ def ensure_logged_in(config: Config, account: Account, interactive=True):
         except AuthError:
             if not interactive:
                 raise
-            token = device_code_login(config.client_id)
+            token = flow(config.client_id)
     else:
         if not interactive:
             raise AuthError("non connecté")
-        token = device_code_login(config.client_id)
+        token = flow(config.client_id)
 
     mc_token, expires_in, xuid = xbox_chain(token["access_token"])
 
@@ -515,7 +541,11 @@ def library_url(lib):
     return f"{base.rstrip('/')}/{group.replace('.', '/')}/{artifact_id}/{version}/{artifact_id}-{version}.jar"
 
 
-def install_version(game_dir: Path, version_json, progress=True):
+def install_version(game_dir: Path, version_json, progress=True, on_progress=None):
+    """@param on_progress  fonction (fraction 0..1, libellé) appelée pendant le travail."""
+    def report(fraction, label):
+        if on_progress:
+            on_progress(fraction, label)
     version_id = version_json["id"]
     natives_dir = game_dir / "versions" / version_id / "natives"
     # 26.2 attend ces sous-dossiers : LWJGL et JNA y extraient eux-mêmes leurs bibliothèques
@@ -526,6 +556,7 @@ def install_version(game_dir: Path, version_json, progress=True):
     # Client jar
     client = version_json.get("downloads", {}).get("client")
     if client:
+        report(0.02, f"Téléchargement du jeu ({client['size'] // 1048576} Mo)")
         jar = game_dir / "versions" / version_id / f"{version_id}.jar"
         if download(client["url"], jar, client.get("sha1"), client.get("size")) and progress:
             print(f"  client {version_id}.jar")
@@ -542,6 +573,7 @@ def install_version(game_dir: Path, version_json, progress=True):
             continue
         if fresh and progress:
             print(f"  [{i}/{len(libs)}] {lib['name']}")
+        report(0.05 + 0.25 * i / len(libs), f"Librairies {i}/{len(libs)}")
 
         # Ancien format (≤ 1.18) : natifs dans un jar séparé à dépaqueter.
         classifiers = lib.get("downloads", {}).get("classifiers")
@@ -565,10 +597,13 @@ def install_version(game_dir: Path, version_json, progress=True):
                  game_dir / "assets" / "log_configs" / logging_cfg["id"],
                  logging_cfg.get("sha1"))
 
-    install_assets(game_dir, version_json, progress)
+    install_assets(game_dir, version_json, progress, on_progress)
 
 
-def install_assets(game_dir: Path, version_json, progress=True):
+def install_assets(game_dir: Path, version_json, progress=True, on_progress=None):
+    def report(fraction, label):
+        if on_progress:
+            on_progress(fraction, label)
     asset_index = version_json.get("assetIndex")
     if not asset_index:
         return
@@ -586,6 +621,8 @@ def install_assets(game_dir: Path, version_json, progress=True):
             downloaded += 1
         if progress and i % 500 == 0:
             print(f"    {i}/{len(objects)}...")
+        if i % 50 == 0:
+            report(0.3 + 0.7 * i / len(objects), f"Ressources {i}/{len(objects)}")
 
         # Versions ≤ 1.8 : arborescence à plat en plus du stockage par hash.
         if index.get("map_to_resources") or index.get("virtual"):

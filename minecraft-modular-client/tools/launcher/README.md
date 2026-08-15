@@ -3,39 +3,42 @@
 Un seul fichier Python, aucune dépendance à installer. Il télécharge le jeu, installe Fabric, gère
 la connexion Microsoft et lance Minecraft.
 
-## Démarrage — le plus simple
+## Démarrage
 
-**Windows :** double-clique sur `Lancer.bat`. Un menu s'ouvre, tu choisis par numéro.
+**Windows :** double-clique sur `Lancer.bat`. L'interface graphique s'ouvre.
 
 **Mac / Linux :**
 
 ```bash
-python3 mclaunch.py
+python3 gui.py
 ```
 
-Sans argument, le lanceur ouvre un menu :
+Quatre pages dans la barre de gauche :
 
-```
-========================================================
-   LANCEUR MINECRAFT
-========================================================
-  Dossier de jeu : C:\Users\...\game
-  Compte         : non connecte
-  Installe       : rien pour l'instant
+| Page | Ce qu'on y fait |
+|---|---|
+| **Jouer** | choisir une version installée et lancer le jeu |
+| **Mods** | ajouter tes mods, les activer/désactiver, installer le pack performance |
+| **Paramètres** | mémoire allouée, dossier de jeu, identifiant Azure, chemin de Java |
+| **Compte** | connexion Microsoft |
 
-  1) JOUER
-  2) Installer une version (avec Fabric)
-  3) Se connecter a mon compte Microsoft
-  4) Configurer le lanceur
-  ...
-```
+La première fois : **Paramètres** (coller l'identifiant Azure) → **Compte** (se connecter) →
+**Jouer** → *Installer*. Ensuite, seul le bouton JOUER sert.
 
-Suis l'ordre **4 → 3 → 2 → 1** la première fois : configurer, se connecter, installer, jouer.
-Ensuite, seul le choix 1 sert.
+### Gérer ses mods
 
-## En ligne de commande
+La page Mods lit le contenu de chaque `.jar` pour afficher le vrai nom, la version, la description
+et l'icône du mod — pas le nom de fichier. L'interrupteur active ou désactive sans supprimer : le
+fichier est renommé en `.jar.disabled`, la convention que Fabric comprend, donc réactiver ne
+demande aucun téléchargement.
 
-Les sous-commandes restent disponibles si tu préfères :
+Le bouton **Pack performance** télécharge Sodium, Lithium, FerriteCore et une dizaine d'autres
+directement depuis Modrinth, pour la version installée.
+
+## Interface graphique ou ligne de commande
+
+`gui.py` est l'interface ; `mclaunch.py` contient toute la logique et reste utilisable seul.
+Sans argument, `mclaunch.py` ouvre un menu texte numéroté. Les sous-commandes restent disponibles :
 
 ```bash
 python3 mclaunch.py setup
@@ -47,9 +50,8 @@ python3 mclaunch.py play 26.2 --dry-run   # affiche la commande sans lancer
 
 ## Si tu vois « error: the following arguments are required: command »
 
-C'était le comportement de la version 1.0 quand on lançait le script sans rien derrière. Ce n'est
-pas une panne : il manquait juste une sous-commande. Depuis la 1.1, le script ouvre le menu à la
-place. Récupère la dernière version du fichier.
+C'était le comportement de la version 1.0 en ligne de commande sans sous-commande. Ce n'était pas
+une panne. Depuis la 1.1 il n'y a plus rien à taper : `Lancer.bat` ouvre directement l'interface.
 
 ## Ce qu'il te faut avant
 
@@ -131,7 +133,7 @@ Pour un `.exe` Windows autonome, sans Python installé :
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --name MonLanceur mclaunch.py
+pyinstaller --onefile --windowed --name MonLanceur gui.py
 ```
 
 Le binaire arrive dans `dist/`. Note qu'un exécutable PyInstaller est souvent signalé à tort par
@@ -167,6 +169,9 @@ Testé sur Minecraft 26.2 / Fabric 0.19.3 :
 - téléchargement du client (39,2 Mo) avec vérification SHA-1 — OK
 - relance sans re-télécharger — OK
 - construction de la ligne de commande, aucune variable non substituée, jeton masqué à l'affichage — OK
+- interface : les quatre pages et les deux fenêtres modales ont été rendues sous affichage virtuel
+  et inspectées visuellement, avec des données de test (versions installées, cinq mods avec
+  icônes, compte connecté) — OK
 
 **Non testé :** la connexion Microsoft elle-même et le lancement effectif du jeu. Les deux
 demandent un vrai compte et un écran, que je n'ai pas ici. La chaîne d'authentification suit la
