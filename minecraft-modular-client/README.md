@@ -30,7 +30,9 @@ Le second démonstrateur vérifie la logique de diagnostic BlockEntity sur un mo
 (4 000 entités, deux chunks volontairement saturés) :
 
 ```bash
-java -cp /tmp/out dev.poc.modules.bediag.DiagnosticsDemo
+find poc-api poc-core poc-modules poc-adapters -name '*.java' > /tmp/srcs2.txt
+javac -encoding UTF-8 -d /tmp/out2 @/tmp/srcs2.txt
+java -Dstdout.encoding=UTF-8 -cp /tmp/out2 dev.poc.modules.bediag.DiagnosticsDemo
 ```
 
 `poc-ui` demande LWJGL 3 et passe par Gradle (`./gradlew :poc-ui:build`). Pour un typecheck rapide
