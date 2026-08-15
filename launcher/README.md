@@ -3,6 +3,17 @@
 Un seul fichier Python, aucune dépendance à installer. Il télécharge le jeu, installe Fabric, gère
 la connexion Microsoft et lance Minecraft.
 
+## Installation
+
+**Première fois :** récupère `Installer.bat`, place-le où tu veux et double-clique. Il télécharge
+tout le reste et démarre le lanceur.
+
+**Ensuite :** double-clique sur `Lancer.bat`.
+
+**Mises à jour :** dans le lanceur, *Paramètres → Vérifier et mettre à jour*. Plus besoin de
+revenir sur GitHub — les fichiers sont remplacés sur place, avec une sauvegarde `.backup` de
+chacun. La nouvelle version prend effet au redémarrage du lanceur.
+
 ## Démarrage
 
 **Windows :** double-clique sur `Lancer.bat`. L'interface graphique s'ouvre.

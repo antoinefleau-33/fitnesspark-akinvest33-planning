@@ -36,7 +36,7 @@ import zipfile
 from pathlib import Path
 
 APP_NAME = "poclauncher"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 
 # La console Windows utilise encore cp1252 par défaut dans certaines configurations : sans ça, le
 # moindre accent fait planter le script sur un UnicodeEncodeError, ce qui donne l'impression que
@@ -130,9 +130,9 @@ def download(url, target: Path, expected_sha1=None, expected_size=None):
 
 RAW_BASE = ("https://raw.githubusercontent.com/antoinefleau-33/"
             "fitnesspark-akinvest33-planning/claude/minecraft-modular-client-poc-78j3i2/"
-            "minecraft-modular-client/tools/launcher")
+            "launcher")
 
-UPDATABLE_FILES = ["mclaunch.py", "gui.py", "ui.py", "Lancer.bat"]
+UPDATABLE_FILES = ["mclaunch.py", "gui.py", "ui.py", "Lancer.bat", "Installer.bat"]
 
 
 def latest_launcher_version():

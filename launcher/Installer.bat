@@ -13,7 +13,7 @@ cd /d "%~dp0"
 title Installation du lanceur Minecraft
 
 set "DEST=%~dp0LanceurMinecraft"
-set "BASE=https://raw.githubusercontent.com/antoinefleau-33/fitnesspark-akinvest33-planning/claude/minecraft-modular-client-poc-78j3i2/minecraft-modular-client/tools/launcher"
+set "BASE=https://raw.githubusercontent.com/antoinefleau-33/fitnesspark-akinvest33-planning/claude/minecraft-modular-client-poc-78j3i2/launcher"
 
 echo.
 echo   Installation dans : %DEST%
