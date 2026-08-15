@@ -17,7 +17,9 @@ d'authentification correctement plutôt que de la contourner.
 """
 
 import argparse
+import concurrent.futures
 import hashlib
+import http.client
 import json
 import os
 import platform
@@ -25,6 +27,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -97,6 +100,11 @@ def download(url, target: Path, expected_sha1=None, expected_size=None):
     La vérification SHA-1 n'est pas du zèle : un téléchargement interrompu produit un jar
     tronqué qui fait planter le jeu avec une erreur incompréhensible plusieurs minutes plus tard.
     Vérifier ici transforme ça en un simple re-téléchargement.
+
+    Réservé aux fichiers uniques et critiques (client jar, manifestes). Pour les milliers de
+    ressources et les centaines de librairies, voir download_many : la vérification s'y fait sur
+    la taille, car recalculer le SHA-1 de 500 Mo à chaque lancement coûterait plus cher que le
+    risque qu'elle couvre.
     """
     if target.exists():
         if expected_size is not None and target.stat().st_size != expected_size:
@@ -114,6 +122,105 @@ def download(url, target: Path, expected_sha1=None, expected_size=None):
         shutil.copyfileobj(r, f, length=1 << 20)
     tmp.replace(target)
     return True
+
+
+_pool = threading.local()
+
+
+def _pooled_get(url, target: Path):
+    """
+    Télécharge un fichier en réutilisant la connexion HTTPS du thread courant.
+
+    C'est la moitié du gain de vitesse. Les ressources de Minecraft sont 5000 fichiers de 10 Ko en
+    moyenne, tous sur le même serveur : ouvrir une connexion TLS neuve pour chacun coûte environ
+    450 ms de négociation pour 20 ms de transfert. En gardant la connexion ouverte, seul le premier
+    fichier paie ce prix.
+    """
+    parsed = urllib.parse.urlparse(url)
+    host = parsed.netloc
+    path = parsed.path or "/"
+
+    conns = getattr(_pool, "conns", None)
+    if conns is None:
+        conns = _pool.conns = {}
+
+    last_error = None
+    for attempt in range(3):
+        conn = conns.get(host)
+        if conn is None:
+            conn = conns[host] = http.client.HTTPSConnection(host, timeout=30)
+        try:
+            conn.request("GET", path, headers={"User-Agent": UA, "Connection": "keep-alive"})
+            response = conn.getresponse()
+            data = response.read()          # obligatoire même en erreur, sinon la connexion reste sale
+            if response.status != 200:
+                raise OSError(f"HTTP {response.status} sur {url}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            tmp = target.with_name(target.name + ".part")
+            tmp.write_bytes(data)
+            tmp.replace(target)
+            return len(data)
+        except Exception as e:
+            last_error = e
+            # Une connexion persistante finit toujours par être fermée par le serveur : on la
+            # jette et on retente plutôt que de faire remonter l'erreur.
+            try:
+                conn.close()
+            except Exception:
+                pass
+            conns.pop(host, None)
+    raise last_error
+
+
+def download_many(items, workers=16, on_progress=None):
+    """
+    Télécharge une liste de (url, destination, taille attendue) en parallèle.
+
+    L'autre moitié du gain. Ces téléchargements attendent le réseau, pas le processeur : 16 fils
+    tiennent 16 fichiers en vol simultanément. Au-delà, le serveur de Mojang commence à limiter et
+    on gagne peu — 16 est aussi ce qu'utilise le lanceur officiel.
+
+    @return (nombre téléchargé, liste des échecs)
+    """
+    pending = []
+    for url, target, size in items:
+        if target.exists() and (size is None or target.stat().st_size == size):
+            continue
+        pending.append((url, target))
+
+    done = 0
+    failures = []
+    if not pending:
+        if on_progress:
+            on_progress(1.0, "Déjà à jour")
+        return 0, failures
+
+    lock = threading.Lock()
+    last_report = [0.0]
+
+    def fetch(job):
+        nonlocal done
+        url, target = job
+        try:
+            _pooled_get(url, target)
+            outcome = None
+        except Exception as e:
+            outcome = f"{target.name} : {e}"
+        with lock:
+            done += 1
+            if outcome:
+                failures.append(outcome)
+            now = time.time()
+            # Rapport limité à 10 par seconde : à 5000 fichiers, notifier chaque succès sature
+            # la file de l'interface et la ralentit plus que le téléchargement lui-même.
+            if on_progress and (now - last_report[0] > 0.1 or done == len(pending)):
+                last_report[0] = now
+                on_progress(done / len(pending), f"{done}/{len(pending)} fichiers")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        list(pool.map(fetch, pending))
+
+    return done - len(failures), failures
 
 
 def sha1_of(path: Path):
@@ -561,23 +668,25 @@ def install_version(game_dir: Path, version_json, progress=True, on_progress=Non
         if download(client["url"], jar, client.get("sha1"), client.get("size")) and progress:
             print(f"  client {version_id}.jar")
 
-    # Librairies
+    # Librairies, en parallèle elles aussi : 130 fichiers, même problème de connexions.
     libs = [lib for lib in version_json["libraries"] if rules_allow(lib.get("rules"))]
-    for i, lib in enumerate(libs, 1):
-        target = library_path(game_dir, lib)
+    jobs = []
+    for lib in libs:
         artifact = lib.get("downloads", {}).get("artifact") or {}
-        try:
-            fresh = download(library_url(lib), target, artifact.get("sha1"), artifact.get("size"))
-        except urllib.error.HTTPError as e:
-            print(f"  ! librairie indisponible : {lib['name']} ({e.code})")
-            continue
-        if fresh and progress:
-            print(f"  [{i}/{len(libs)}] {lib['name']}")
-        report(0.05 + 0.25 * i / len(libs), f"Librairies {i}/{len(libs)}")
+        jobs.append((library_url(lib), library_path(game_dir, lib), artifact.get("size")))
 
+    fetched, failures = download_many(
+        jobs, on_progress=lambda f, label: report(0.05 + 0.25 * f, f"Librairies {label}"))
+    if progress:
+        print(f"  librairies : {fetched} téléchargées, {len(jobs) - fetched} déjà présentes")
+    for failure in failures:
+        print(f"  ! librairie indisponible : {failure}")
+
+    for lib in libs:
         # Ancien format (≤ 1.18) : natifs dans un jar séparé à dépaqueter.
         classifiers = lib.get("downloads", {}).get("classifiers")
         natives_key = (lib.get("natives") or {}).get(os_name())
+        natives_dir_java = natives_dir / "java"
         if classifiers and natives_key:
             key = natives_key.replace("${arch}", "64")
             native = classifiers.get(key)
@@ -588,7 +697,7 @@ def install_version(game_dir: Path, version_json, progress=True, on_progress=Non
                     for member in z.namelist():
                         if member.startswith("META-INF/") or member.endswith("/"):
                             continue
-                        z.extract(member, natives_dir / "java")
+                        z.extract(member, natives_dir_java)
 
     # Configuration de journalisation
     logging_cfg = version_json.get("logging", {}).get("client", {}).get("file")
@@ -612,26 +721,33 @@ def install_assets(game_dir: Path, version_json, progress=True, on_progress=None
     index = json.loads(index_path.read_text(encoding="utf-8"))
     objects = index.get("objects", {})
 
-    print(f"  assets : {len(objects)} fichiers à vérifier")
-    downloaded = 0
-    for i, (name, obj) in enumerate(objects.items(), 1):
-        h = obj["hash"]
-        target = game_dir / "assets" / "objects" / h[:2] / h
-        if download(f"{RESOURCES_URL}/{h[:2]}/{h}", target, None, obj.get("size")):
-            downloaded += 1
-        if progress and i % 500 == 0:
-            print(f"    {i}/{len(objects)}...")
-        if i % 50 == 0:
-            report(0.3 + 0.7 * i / len(objects), f"Ressources {i}/{len(objects)}")
+    objects_dir = game_dir / "assets" / "objects"
+    jobs = [(f"{RESOURCES_URL}/{o['hash'][:2]}/{o['hash']}",
+             objects_dir / o["hash"][:2] / o["hash"],
+             o.get("size"))
+            for o in objects.values()]
 
-        # Versions ≤ 1.8 : arborescence à plat en plus du stockage par hash.
-        if index.get("map_to_resources") or index.get("virtual"):
+    report(0.3, f"Vérification de {len(jobs)} ressources")
+    downloaded, failures = download_many(
+        jobs,
+        on_progress=lambda f, label: report(0.3 + 0.7 * f, f"Ressources {label}"))
+
+    if progress:
+        print(f"  assets : {downloaded} téléchargés, {len(jobs) - downloaded} déjà présents")
+    for failure in failures[:5]:
+        print(f"  ! ressource manquante : {failure}")
+    if failures:
+        print(f"  ! {len(failures)} ressource(s) en échec — relancer l'installation les reprendra")
+
+    # Versions ≤ 1.8 : arborescence à plat en plus du stockage par hash.
+    if index.get("map_to_resources") or index.get("virtual"):
+        report(0.99, "Mise en place des ressources (ancienne arborescence)")
+        for name, obj in objects.items():
+            source = objects_dir / obj["hash"][:2] / obj["hash"]
             legacy = game_dir / "assets" / "virtual" / "legacy" / name
-            if not legacy.exists():
+            if source.exists() and not legacy.exists():
                 legacy.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(target, legacy)
-
-    print(f"  assets : {downloaded} téléchargés, {len(objects) - downloaded} déjà présents")
+                shutil.copyfile(source, legacy)
 
 
 # ----------------------------------------------------------------------------------------------

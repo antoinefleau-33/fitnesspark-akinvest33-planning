@@ -160,6 +160,23 @@ python3 mclaunch.py play 26.2
 | `install <v>` | télécharge une version (`--fabric` pour ajouter Fabric) |
 | `play <v>` | lance le jeu (`--dry-run` pour voir la commande) |
 
+## Vitesse d'installation
+
+Une version complète, c'est ~580 Mo : le jeu, 68 librairies et **5057 fichiers de ressources**
+(textures, sons, langues). Ces ressources font 10 Ko en moyenne.
+
+La version 1.1 les téléchargeait un par un, chacun sur une connexion sécurisée neuve : environ
+450 ms de négociation pour 20 ms de transfert utile. Soit **39 minutes**, dont l'immense majorité
+passée à ouvrir et fermer des connexions.
+
+Depuis la 1.2, les connexions sont réutilisées et 16 fichiers sont téléchargés en même temps.
+Mesuré sur une installation complète de 26.2 partant de zéro : **20 secondes**. Une réinstallation,
+quand tout est déjà présent : **0,1 seconde** au lieu de plusieurs minutes de vérification.
+
+Ce chiffre de 20 s a été obtenu sur une connexion rapide. Chez toi, le temps sera surtout dicté par
+ton débit : 580 Mo sur une fibre à 100 Mb/s font environ une minute, incompressible. Le point
+important est qu'il n'y a plus de temps perdu ailleurs que dans le transfert lui-même.
+
 ## État de vérification
 
 Testé sur Minecraft 26.2 / Fabric 0.19.3 :
@@ -168,6 +185,8 @@ Testé sur Minecraft 26.2 / Fabric 0.19.3 :
 - filtrage par système : 68 librairies retenues sur 131, natifs des autres OS correctement exclus — OK
 - téléchargement du client (39,2 Mo) avec vérification SHA-1 — OK
 - relance sans re-télécharger — OK
+- installation complète de 26.2 depuis zéro : 582 Mo en 20 s ; seconde passe en 0,1 s — OK
+- profil Fabric installé et fusionné, 76 jars au classpath — OK
 - construction de la ligne de commande, aucune variable non substituée, jeton masqué à l'affichage — OK
 - interface : les quatre pages et les deux fenêtres modales ont été rendues sous affichage virtuel
   et inspectées visuellement, avec des données de test (versions installées, cinq mods avec
