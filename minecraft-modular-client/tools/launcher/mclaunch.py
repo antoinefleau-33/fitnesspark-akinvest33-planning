@@ -124,6 +124,67 @@ def download(url, target: Path, expected_sha1=None, expected_size=None):
     return True
 
 
+# ----------------------------------------------------------------------------------------------
+# Mise à jour du lanceur lui-même
+# ----------------------------------------------------------------------------------------------
+
+RAW_BASE = ("https://raw.githubusercontent.com/antoinefleau-33/"
+            "fitnesspark-akinvest33-planning/claude/minecraft-modular-client-poc-78j3i2/"
+            "minecraft-modular-client/tools/launcher")
+
+UPDATABLE_FILES = ["mclaunch.py", "gui.py", "ui.py", "Lancer.bat"]
+
+
+def latest_launcher_version():
+    """Version publiée, lue directement dans le source distant."""
+    req = urllib.request.Request(f"{RAW_BASE}/mclaunch.py?t={int(time.time())}",
+                                 headers={"User-Agent": UA, "Cache-Control": "no-cache"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        text = r.read().decode("utf-8", "replace")
+    match = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', text)
+    if not match:
+        raise OSError("version introuvable dans le fichier distant")
+    return match.group(1)
+
+
+def self_update(target_dir: Path = None, on_progress=None):
+    """
+    Remplace les fichiers du lanceur par la dernière version publiée.
+
+    Évite d'avoir à retélécharger et réextraire une archive à chaque correction. Les fichiers
+    sont téléchargés en entier puis écrits d'un coup : une coupure au milieu laisse l'ancienne
+    version en place plutôt qu'un lanceur à moitié remplacé, donc irrécupérable.
+
+    Le fichier en cours d'exécution peut être remplacé sans risque — Python l'a déjà chargé en
+    mémoire. La nouvelle version prend effet au prochain démarrage.
+    """
+    target_dir = target_dir or Path(__file__).resolve().parent
+    fetched = {}
+
+    for i, name in enumerate(UPDATABLE_FILES, 1):
+        if on_progress:
+            on_progress(i / (len(UPDATABLE_FILES) + 1), f"Téléchargement de {name}")
+        req = urllib.request.Request(f"{RAW_BASE}/{name}?t={int(time.time())}",
+                                     headers={"User-Agent": UA, "Cache-Control": "no-cache"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = r.read()
+        if len(data) < 200:
+            raise OSError(f"{name} : contenu suspect ({len(data)} octets), mise à jour annulée")
+        fetched[name] = data
+
+    if on_progress:
+        on_progress(0.9, "Installation")
+    for name, data in fetched.items():
+        path = target_dir / name
+        if path.exists():
+            shutil.copyfile(path, path.with_name(name + ".backup"))
+        path.write_bytes(data)
+
+    if on_progress:
+        on_progress(1.0, "Mise à jour installée")
+    return len(fetched)
+
+
 _pool = threading.local()
 
 

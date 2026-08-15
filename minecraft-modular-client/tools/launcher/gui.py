@@ -949,10 +949,30 @@ class SettingsPage(Page):
         self.java.pack(fill="x", pady=(18, 0))
 
         row = tk.Frame(body, bg=T.BG_DEEP)
-        row.pack(fill="x", pady=(4, 34))
+        row.pack(fill="x", pady=(4, 18))
         Button(row, "Enregistrer", command=self.save, width=140, bg=T.BG_DEEP).pack(side="left")
         self.saved = tk.Label(row, text="", bg=T.BG_DEEP, fg=T.GREEN, font=font(9))
         self.saved.pack(side="left", padx=14)
+
+        # Mise à jour du lanceur, pour ne plus avoir à retélécharger une archive.
+        panel3 = tk.Frame(body, bg=T.BG_PANEL)
+        panel3.pack(fill="x", pady=(0, 34))
+        inner3 = tk.Frame(panel3, bg=T.BG_PANEL)
+        inner3.pack(fill="x", padx=22, pady=20)
+
+        tk.Label(inner3, text="MISE À JOUR DU LANCEUR", bg=T.BG_PANEL, fg=T.TEXT_DIM,
+                 font=font(9, "bold"), anchor="w").pack(fill="x")
+        tk.Label(inner3, text=f"Version installée : {core.APP_VERSION}", bg=T.BG_PANEL,
+                 fg=T.TEXT, font=font(10), anchor="w").pack(fill="x", pady=(6, 0))
+
+        update_row = tk.Frame(inner3, bg=T.BG_PANEL)
+        update_row.pack(fill="x", pady=(12, 0))
+        self.update_btn = Button(update_row, "Vérifier et mettre à jour",
+                                 command=self.update_launcher, width=210, bg=T.BG_PANEL)
+        self.update_btn.pack(side="left")
+        self.update_state = tk.Label(update_row, text="", bg=T.BG_PANEL, fg=T.TEXT_DIM,
+                                     font=font(9))
+        self.update_state.pack(side="left", padx=14)
 
     def _on_memory(self, value):
         self.memory_value.configure(text=f"{int(value) / 1024:.1f} Go")
@@ -965,6 +985,38 @@ class SettingsPage(Page):
         self.game_dir.set(str(cfg.game_dir))
         self.java.set(cfg.java)
         self.saved.configure(text="")
+
+    def update_launcher(self):
+        """Récupère la dernière version publiée du lanceur et remplace les fichiers locaux."""
+        self.update_btn.set_enabled(False)
+        self.update_state.configure(text="Vérification...", fg=T.TEXT_DIM)
+
+        def work():
+            latest = core.latest_launcher_version()
+            if latest == core.APP_VERSION:
+                return None
+            core.self_update(on_progress=lambda f, l: self.app.post(
+                lambda: self.update_state.configure(text=l)))
+            return latest
+
+        def done(latest):
+            self.update_btn.set_enabled(True)
+            if latest is None:
+                self.update_state.configure(
+                    text="Tu as déjà la dernière version.", fg=T.GREEN)
+            else:
+                self.update_state.configure(text=f"Version {latest} installée.", fg=T.GREEN)
+                messagebox.showinfo(
+                    "Mise à jour installée",
+                    f"Le lanceur est passé en version {latest}.\n\n"
+                    "Ferme cette fenêtre et relance Lancer.bat pour en profiter.")
+
+        def failed(message):
+            self.update_btn.set_enabled(True)
+            self.update_state.configure(text="Échec de la mise à jour", fg=T.RED)
+            self.app.toast(message, error=True)
+
+        self.app.run_async(work, done, failed)
 
     def save(self):
         cfg = self.app.cfg
