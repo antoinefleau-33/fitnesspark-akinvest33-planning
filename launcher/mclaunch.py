@@ -37,7 +37,7 @@ import zipfile
 from pathlib import Path
 
 APP_NAME = "poclauncher"
-APP_VERSION = "2.3.0"
+APP_VERSION = "2.4.0"
 
 # La console Windows utilise encore cp1252 par défaut dans certaines configurations : sans ça, le
 # moindre accent fait planter le script sur un UnicodeEncodeError, ce qui donne l'impression que

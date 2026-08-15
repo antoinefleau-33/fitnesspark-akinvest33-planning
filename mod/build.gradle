@@ -1,0 +1,34 @@
+plugins {
+    id 'fabric-loom' version '1.11-SNAPSHOT'
+}
+
+version = '1.0.0'
+group = 'dev.poc'
+
+base { archivesName = 'poc-client' }
+
+repositories { mavenCentral() }
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand version: project.version }
+}
+
+// Minecraft 26.2 exige Java 25. Compiler pour une cible plus ancienne produit un mod qui se
+// charge mais casse au premier appel d'API recente.
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(25) }
+    withSourcesJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 25
+}

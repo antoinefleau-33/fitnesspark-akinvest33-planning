@@ -1,0 +1,10 @@
+{
+  "category.poc-client.musique": "POC Client — Musique",
+  "category.poc-client.diagnostic": "POC Client — Diagnostic",
+  "key.poc-client.music.toggle": "Afficher/masquer la musique",
+  "key.poc-client.music.playpause": "Lecture / pause",
+  "key.poc-client.music.next": "Morceau suivant",
+  "key.poc-client.diag.toggle": "Diagnostic BlockEntity",
+  "key.poc-client.diag.filter": "Filtre suivant",
+  "key.poc-client.diag.depth": "Mode d'occlusion suivant"
+}

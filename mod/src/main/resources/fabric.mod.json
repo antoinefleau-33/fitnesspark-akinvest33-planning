@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "poc-client",
+  "version": "1.0.0",
+  "name": "POC Client",
+  "description": "Incrustation Spotify pilotée par le lanceur, et diagnostic de rendu des BlockEntity.",
+  "authors": ["poc"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["dev.poc.ClientMod"]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.0",
+    "fabric-api": "*",
+    "minecraft": "~26.2",
+    "java": ">=25"
+  }
+}

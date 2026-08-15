@@ -35,6 +35,8 @@ secondes sur une bonne connexion.
 
 ```
 launcher/    Le lanceur. C'est ce qui t'intéresse.
+mod/         Mod Fabric : incrustation Spotify en jeu + diagnostic BlockEntity.
+             À compiler soi-même (voir mod/README.md).
 modpack/     Script qui résout les mods de performance depuis Modrinth.
 archive/     Proof-of-concept d'un client Minecraft modulaire en Java.
              Exploration d'architecture, sans rapport avec le lanceur.

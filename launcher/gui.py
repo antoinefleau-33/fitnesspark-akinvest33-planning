@@ -238,6 +238,31 @@ class Launcher(tk.Tk):
             self.account_state.configure(text="Se connecter", fg=T.TEXT_FAINT)
             self.avatar.itemconfig(self.avatar_letter, text="?", fill=T.TEXT_DIM)
 
+    def start_music_bridge(self, game_dir):
+        """
+        Démarre le serveur local que le mod interroge, et dépose le fichier de jeton dans le
+        dossier de jeu — seul endroit que le mod sait trouver sans configuration.
+        """
+        try:
+            self.stop_music_bridge()
+            token_file = game_dir / ".spotify-bridge.json"
+            client_id = self.cfg.data.get("spotify_client_id", "")
+            store = self.config_root / "spotify.json"
+            self._bridge = spotify.BridgeServer(
+                lambda: spotify.pick_backend(client_id, store), token_file)
+            self._bridge.start()
+        except Exception as e:
+            print("pont musique indisponible :", e)
+
+    def stop_music_bridge(self):
+        bridge = getattr(self, "_bridge", None)
+        if bridge is not None:
+            try:
+                bridge.stop()
+            except Exception:
+                pass
+            self._bridge = None
+
     def toast(self, message, error=False):
         messagebox.showerror("Problème", message) if error \
             else messagebox.showinfo("Information", message)
@@ -459,6 +484,7 @@ class PlayPage(Page):
                                         fg=T.TEXT_DIM)
 
     def _on_game_exit(self, code, console):
+        self.app.stop_music_bridge()
         """
         Fin du jeu. Un code de sortie non nul signale un crash : on le dit clairement et on ouvre
         la console, plutôt que de laisser l\'utilisateur devant une fenêtre qui a juste disparu.
@@ -585,6 +611,11 @@ class PlayPage(Page):
                 game_dir, _json.loads(path.read_text(encoding="utf-8")))
             command = core.build_command(self.app.cfg, self.app.account, game_dir, version_json)
             game_dir.mkdir(parents=True, exist_ok=True)
+
+            # Le pont local doit tourner avant le jeu : le mod lit le fichier de jeton des son
+            # initialisation, et le trouver absent le laisserait hors ligne jusqu'au prochain
+            # cycle d'interrogation.
+            self.app.start_music_bridge(game_dir)
 
             console = self.app.pages["console"]
             self.app.post(lambda: (console.clear(),
