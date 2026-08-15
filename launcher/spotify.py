@@ -406,6 +406,59 @@ class WebApiBackend:
 # Sélection automatique
 # ----------------------------------------------------------------------------------------------
 
+REDIRECT_PORT = 8888
+REDIRECT_URI = f"http://127.0.0.1:{REDIRECT_PORT}/callback"
+
+
+def wait_for_authorization_code(timeout=180):
+    """
+    Ouvre un serveur local le temps que Spotify renvoie le code d'autorisation.
+
+    Spotify redirige le navigateur vers cette adresse après validation. Le port est **fixe** :
+    l'adresse de redirection doit être déclarée à l'identique dans le tableau de bord Spotify,
+    donc elle ne peut pas changer d'une session à l'autre.
+    """
+    import http.server
+
+    captured = {}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            captured["code"] = params.get("code", [""])[0]
+            captured["error"] = params.get("error", [""])[0]
+
+            ok = bool(captured["code"])
+            body = f"""<!doctype html><html><head><meta charset="utf-8">
+<title>Spotify</title></head>
+<body style="background:#0D0F14;color:#E9ECF2;font-family:system-ui;text-align:center;padding:80px">
+<h2>{'Connexion réussie' if ok else 'Connexion refusée'}</h2>
+<p>{'Tu peux fermer cet onglet et revenir au lanceur.'
+    if ok else 'Retourne au lanceur et réessaie.'}</p>
+</body></html>""".encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    server = http.server.HTTPServer(("127.0.0.1", REDIRECT_PORT), Handler)
+    server.timeout = timeout
+    try:
+        server.handle_request()      # une seule requête, puis on referme
+    finally:
+        server.server_close()
+
+    if captured.get("error"):
+        raise PermissionError(f"Spotify a refusé : {captured['error']}")
+    if not captured.get("code"):
+        raise TimeoutError("aucune réponse de Spotify")
+    return captured["code"]
+
+
 class BridgeServer:
     """
     Petit serveur HTTP local que le mod Minecraft interroge.

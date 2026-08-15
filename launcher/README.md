@@ -131,6 +131,51 @@ solo sans compte, mais **aucun serveur en ligne ne l'acceptera jamais** — c'es
 cause du `Failed to verify username`. Comme ton objectif est que rejoindre un serveur fonctionne,
 l'ajouter ne ferait que réintroduire le problème.
 
+## Musique — Spotify
+
+Page **Musique** : ce qui joue, lecture/pause/suivant/précédent, et tes playlists cliquables.
+L'habillage reprend le style des interfaces du jeu — biseaux, aplats, police à chasse fixe,
+ombre portée d'un pixel.
+
+### Mise en place
+
+Comme pour Microsoft, Spotify impose que chaque application ait sa propre identité. Cinq minutes :
+
+1. [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) → **Create app**
+2. Redirect URI, à recopier **exactement** : `http://127.0.0.1:8888/callback`
+3. Cocher **Web API**, enregistrer
+4. Copier le **Client ID** et le coller dans la page Musique
+
+Le port 8888 est fixe : Spotify compare l'adresse de redirection caractère par caractère avec
+celle déclarée, elle ne peut donc pas varier d'une session à l'autre.
+
+### Ce qui marche, et avec quel compte
+
+| | Gratuit | Premium |
+|---|---|---|
+| Voir ce qui joue | oui | oui |
+| Lecture / pause / suivant | via les touches multimédia | oui |
+| Changer de playlist | **non** | oui |
+
+Spotify réserve le contrôle de lecture par API aux comptes Premium et renvoie une erreur 403
+sinon. Ce n'est pas une limite de ce lanceur.
+
+### Pochettes d'album
+
+Affichées en mosaïque de gros pixels, générée à partir du titre. Tk ne sait décoder que PNG et
+GIF, et les pochettes Spotify sont toutes en JPEG. Plutôt qu'un carré vide, chaque morceau reçoit
+un motif qui lui est propre et reste le même d'une fois sur l'autre.
+
+### Et dans le jeu ?
+
+`spotify.py` contient déjà un petit serveur local (`BridgeServer`) prévu pour qu'un mod Fabric
+vienne y lire l'état et envoyer les commandes. Il écoute sur `127.0.0.1` uniquement et exige un
+jeton : sans cela, n'importe quelle page web ouverte dans le navigateur pourrait piloter ta
+musique depuis du JavaScript.
+
+Le mod lui-même reste à écrire — c'est du Java, compilé contre Minecraft, hors de portée du
+lanceur.
+
 ## En faire un vrai exécutable autonome
 
 Double-clique sur **`Compiler-EXE.bat`**. Après 2 à 3 minutes, tu obtiens un `.exe` dans `dist/`

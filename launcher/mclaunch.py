@@ -37,7 +37,7 @@ import zipfile
 from pathlib import Path
 
 APP_NAME = "poclauncher"
-APP_VERSION = "2.2.0"
+APP_VERSION = "2.3.0"
 
 # La console Windows utilise encore cp1252 par défaut dans certaines configurations : sans ça, le
 # moindre accent fait planter le script sur un UnicodeEncodeError, ce qui donne l'impression que
@@ -133,8 +133,8 @@ RAW_BASE = ("https://raw.githubusercontent.com/antoinefleau-33/"
             "fitnesspark-akinvest33-planning/claude/minecraft-modular-client-poc-78j3i2/"
             "launcher")
 
-UPDATABLE_FILES = ["mclaunch.py", "gui.py", "ui.py", "Lancer.bat", "Installer.bat",
-                   "Compiler-EXE.bat"]
+UPDATABLE_FILES = ["mclaunch.py", "gui.py", "ui.py", "spotify.py", "Lancer.bat",
+                   "Installer.bat", "Compiler-EXE.bat"]
 
 
 def latest_launcher_version():

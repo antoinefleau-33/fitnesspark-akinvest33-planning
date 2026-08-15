@@ -437,6 +437,114 @@ class Toggle(tk.Canvas):
             self.command(self.value)
 
 
+class MC:
+    """Palette des interfaces Minecraft."""
+    FACE = "#6E6E6E"          # face d'un bouton
+    FACE_HOVER = "#7E8AA0"    # bouton survolé, légèrement bleuté comme en jeu
+    FACE_DOWN = "#5A5A5A"
+    LIGHT = "#B0B0B0"         # arête haut-gauche
+    DARK = "#2B2B2B"          # arête bas-droite
+    PANEL = "#3A3A3A"
+    PANEL_LIGHT = "#565656"
+    TEXT = "#FFFFFF"
+    TEXT_SHADOW = "#3F3F3F"
+    GREEN = "#5EDD5E"
+
+
+def mc_font(size=10, weight="bold"):
+    """
+    Police à chasse fixe : c'est ce qui évoque le mieux Minecraft sans embarquer sa vraie police,
+    qui n'est pas libre de redistribution.
+    """
+    family = "Consolas" if sys.platform == "win32" else "DejaVu Sans Mono"
+    return (family, size, weight)
+
+
+def mc_bevel(canvas, x1, y1, x2, y2, face, thickness=2):
+    """
+    Cadre biseauté façon Minecraft : arête claire en haut à gauche, sombre en bas à droite.
+
+    Les interfaces du jeu n'ont aucun coin arrondi ni dégradé — tout est en aplats et en arêtes
+    d'un ou deux pixels. Reproduire ce biseau suffit à rendre un élément immédiatement
+    reconnaissable, sans avoir besoin des textures d'origine.
+    """
+    canvas.create_rectangle(x1, y1, x2, y2, fill=MC.LIGHT, outline="")
+    canvas.create_rectangle(x1 + thickness, y1 + thickness, x2, y2, fill=MC.DARK, outline="")
+    canvas.create_rectangle(x1 + thickness, y1 + thickness,
+                            x2 - thickness, y2 - thickness, fill=face, outline="")
+
+
+def mc_text(canvas, x, y, text, fill=MC.TEXT, size=10, anchor="center"):
+    """Texte avec l'ombre portée décalée d'un pixel, signature visuelle du jeu."""
+    canvas.create_text(x + 1, y + 1, text=text, fill=MC.TEXT_SHADOW,
+                       font=mc_font(size), anchor=anchor)
+    return canvas.create_text(x, y, text=text, fill=fill, font=mc_font(size), anchor=anchor)
+
+
+class MinecraftButton(tk.Canvas):
+    """Bouton au style du jeu : biseau, pas de coins arrondis, survol bleuté."""
+
+    def __init__(self, parent, text, command=None, width=140, height=40, size=10, bg=None):
+        super().__init__(parent, width=width, height=height, bg=bg or parent.cget("bg"),
+                         highlightthickness=0, bd=0, cursor="hand2")
+        self.command = command
+        self._width, self._height, self._size = width, height, size
+        self._text = text
+        self._enabled = True
+        self._draw(MC.FACE)
+
+        self.bind("<Enter>", lambda e: self._enabled and self._draw(MC.FACE_HOVER))
+        self.bind("<Leave>", lambda e: self._draw(MC.FACE if self._enabled else MC.FACE_DOWN))
+        self.bind("<Button-1>", self._click)
+
+    def _draw(self, face):
+        self.delete("all")
+        mc_bevel(self, 0, 0, self._width, self._height, face)
+        mc_text(self, self._width / 2, self._height / 2, self._text,
+                MC.TEXT if self._enabled else "#9A9A9A", self._size)
+
+    def _click(self, _=None):
+        if self._enabled and self.command:
+            self._draw(MC.FACE_DOWN)
+            self.after(80, lambda: self._draw(MC.FACE_HOVER))
+            self.command()
+
+    def set_text(self, text):
+        self._text = text
+        self._draw(MC.FACE)
+
+    def set_enabled(self, enabled):
+        self._enabled = enabled
+        self._draw(MC.FACE if enabled else MC.FACE_DOWN)
+        self.configure(cursor="hand2" if enabled else "arrow")
+
+
+def pixel_art_cover(canvas, x, y, size, seed_text):
+    """
+    Pochette de repli, dessinée en gros pixels.
+
+    Tk ne sait pas décoder le JPEG, et les pochettes Spotify sont toutes en JPEG. Plutôt que
+    d'afficher un carré vide, on génère une mosaïque déterministe à partir du titre : deux
+    morceaux différents donnent deux motifs différents, et le même morceau retrouve le sien.
+    """
+    cells = 8
+    step = size / cells
+    seed = sum(ord(c) * (i + 7) for i, c in enumerate(seed_text or "?"))
+    palette = ["#4C8DFF", "#3A6FD8", "#2B4C8A", "#5EDD5E", "#3FA83F", "#8B5CF6"]
+
+    for row in range(cells):
+        for col in range(cells // 2):        # symétrie verticale : plus lisible qu'un bruit pur
+            value = (seed * (row * 31 + col * 17 + 13)) % 100
+            if value < 45:
+                continue
+            color = palette[(seed + row + col) % len(palette)]
+            for mirrored in (col, cells - 1 - col):
+                canvas.create_rectangle(
+                    x + mirrored * step, y + row * step,
+                    x + (mirrored + 1) * step, y + (row + 1) * step,
+                    fill=color, outline="")
+
+
 class Field(tk.Frame):
     """Champ de saisie avec libellé et cadre discret."""
 

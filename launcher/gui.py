@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 import tkinter as tk
 import urllib.request
 import webbrowser
@@ -24,9 +25,10 @@ from tkinter import filedialog, messagebox
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import mclaunch as core
-from ui import (Button, Field, NavItem, ProgressBar, ScrollFrame, SlimScrollbar, Slider,
-                T, Toggle, bind_all_children, font, make_head_icon, make_icon,
-                read_mod_info, round_rect)
+import spotify
+from ui import (MC, Button, Field, MinecraftButton, NavItem, ProgressBar, ScrollFrame,
+                SlimScrollbar, Slider, T, Toggle, bind_all_children, font, make_head_icon,
+                make_icon, mc_bevel, mc_text, pixel_art_cover, read_mod_info, round_rect)
 
 WINDOW_W, WINDOW_H = 1060, 680
 
@@ -123,8 +125,8 @@ class Launcher(tk.Tk):
         self.content.pack(side="left", fill="both", expand=True)
 
         for key, cls in (("play", PlayPage), ("mods", ModsPage), ("browse", BrowsePage),
-                         ("console", ConsolePage), ("settings", SettingsPage),
-                         ("account", AccountPage)):
+                         ("music", SpotifyPage), ("console", ConsolePage),
+                         ("settings", SettingsPage), ("account", AccountPage)):
             page = cls(self.content, self)
             self.pages[key] = page
 
@@ -150,6 +152,7 @@ class Launcher(tk.Tk):
         for key, icon, label in (("play", "▶", "Jouer"),
                                  ("mods", "🧩", "Mes mods"),
                                  ("browse", "🔍", "Découvrir"),
+                                 ("music", "♪", "Musique"),
                                  ("console", "🖥", "Console"),
                                  ("settings", "⚙", "Paramètres"),
                                  ("account", "👤", "Compte")):
@@ -1337,6 +1340,403 @@ class ModrinthRow(tk.Frame):
             self.app.toast(message, error=True)
 
         self.app.run_async(work, done, failed)
+
+
+# ----------------------------------------------------------------------------------------------
+# Page « Musique » — Spotify au style Minecraft
+# ----------------------------------------------------------------------------------------------
+
+class SpotifyPage(Page):
+    """
+    Contrôle Spotify, habillé comme une interface du jeu.
+
+    Le rafraîchissement n\'a lieu que lorsque la page est visible. Interroger l\'API Spotify en
+    permanence pendant qu\'on est sur une autre page consommerait le quota de requêtes pour rien.
+    """
+
+    REFRESH_MS = 3000
+
+    def __init__(self, parent, app):
+        super().__init__(parent, app)
+        self.backend = None
+        self.visible = False
+        self._after_id = None
+        self._playlists = []
+
+        self.header("Musique", "Pilote Spotify sans quitter le lanceur.")
+
+        self.body = tk.Frame(self, bg=T.BG_DEEP)
+        self.body.pack(fill="both", expand=True, padx=34, pady=(0, 20))
+
+    # -- Cycle de vie -----------------------------------------------------------------------
+
+    def on_show(self):
+        self.visible = True
+        self.rebuild()
+
+    def pack_forget(self):
+        self.visible = False
+        if self._after_id:
+            self.after_cancel(self._after_id)
+            self._after_id = None
+        super().pack_forget()
+
+    def client_id(self):
+        return self.app.cfg.data.get("spotify_client_id", "")
+
+    def token_store(self):
+        return self.app.config_root / "spotify.json"
+
+    def rebuild(self):
+        for child in self.body.winfo_children():
+            child.destroy()
+
+        if not self.client_id():
+            self.build_setup()
+            return
+
+        self.backend = spotify.pick_backend(self.client_id(), self.token_store())
+        web = spotify.WebApiBackend(self.client_id(), self.token_store())
+        if not web.connected():
+            self.build_login()
+            return
+
+        self.backend = web
+        self.build_player()
+        self.schedule_refresh()
+
+    # -- Écrans -----------------------------------------------------------------------------
+
+    def build_setup(self):
+        panel = tk.Frame(self.body, bg=T.BG_PANEL)
+        panel.pack(fill="x")
+        inner = tk.Frame(panel, bg=T.BG_PANEL)
+        inner.pack(fill="x", padx=26, pady=24)
+
+        tk.Label(inner, text="Connecter Spotify", bg=T.BG_PANEL, fg=T.TEXT,
+                 font=font(14, "bold"), anchor="w").pack(fill="x")
+        tk.Label(inner,
+                 text="Spotify exige que chaque application ait sa propre identité, comme "
+                      "Microsoft. C\'est gratuit et ça prend cinq minutes.",
+                 bg=T.BG_PANEL, fg=T.TEXT_DIM, font=font(9), anchor="w",
+                 justify="left", wraplength=680).pack(fill="x", pady=(6, 16))
+
+        steps = [
+            "1.  Va sur developer.spotify.com/dashboard et connecte-toi",
+            "2.  « Create app » — nom et description libres",
+            f"3.  Redirect URI : {spotify.REDIRECT_URI}",
+            "4.  Coche « Web API », puis enregistre",
+            "5.  Copie le « Client ID » et colle-le ci-dessous",
+        ]
+        for step in steps:
+            tk.Label(inner, text=step, bg=T.BG_PANEL, fg=T.TEXT_DIM,
+                     font=font(9), anchor="w").pack(fill="x", pady=1)
+
+        warn = tk.Label(inner,
+                        text="L\'adresse de redirection doit être recopiée EXACTEMENT, "
+                             "sinon Spotify refusera la connexion.",
+                        bg=T.BG_PANEL, fg=T.AMBER, font=font(9), anchor="w",
+                        justify="left", wraplength=680)
+        warn.pack(fill="x", pady=(10, 0))
+
+        self.id_field = Field(inner, "CLIENT ID SPOTIFY")
+        self.id_field.pack(fill="x", pady=(18, 0))
+
+        row = tk.Frame(inner, bg=T.BG_PANEL)
+        row.pack(fill="x", pady=(14, 0))
+        Button(row, "Enregistrer", command=self.save_client_id, width=140,
+               bg=T.BG_PANEL).pack(side="left")
+        Button(row, "Ouvrir le tableau de bord",
+               command=lambda: webbrowser.open("https://developer.spotify.com/dashboard"),
+               width=220, style="ghost", bg=T.BG_PANEL).pack(side="left", padx=10)
+
+    def save_client_id(self):
+        value = self.id_field.get()
+        if not value:
+            return
+        self.app.cfg.data["spotify_client_id"] = value
+        self.app.cfg.save()
+        self.rebuild()
+
+    def build_login(self):
+        panel = tk.Frame(self.body, bg=T.BG_PANEL)
+        panel.pack(fill="x")
+        inner = tk.Frame(panel, bg=T.BG_PANEL)
+        inner.pack(fill="x", padx=26, pady=26)
+
+        tk.Label(inner, text="Autoriser le lanceur", bg=T.BG_PANEL, fg=T.TEXT,
+                 font=font(14, "bold"), anchor="w").pack(fill="x")
+        tk.Label(inner, text="Ton navigateur va s\'ouvrir sur la page d\'autorisation Spotify.",
+                 bg=T.BG_PANEL, fg=T.TEXT_DIM, font=font(9), anchor="w").pack(fill="x",
+                                                                             pady=(6, 18))
+
+        self.login_btn = MinecraftButton(inner, "SE CONNECTER", command=self.login,
+                                         width=240, height=44, bg=T.BG_PANEL)
+        self.login_btn.pack(anchor="w")
+        self.login_state = tk.Label(inner, text="", bg=T.BG_PANEL, fg=T.TEXT_DIM, font=font(9),
+                                    anchor="w", justify="left", wraplength=680)
+        self.login_state.pack(fill="x", pady=(12, 0))
+
+        Button(inner, "Changer d\'identifiant", command=self.forget_client_id, width=200,
+               style="ghost", bg=T.BG_PANEL).pack(anchor="w", pady=(16, 0))
+
+    def forget_client_id(self):
+        self.app.cfg.data.pop("spotify_client_id", None)
+        self.app.cfg.save()
+        self.rebuild()
+
+    def login(self):
+        self.login_btn.set_enabled(False)
+        self.login_state.configure(text="Ouverture du navigateur...", fg=T.TEXT_DIM)
+        client_id = self.client_id()
+        store = self.token_store()
+
+        def work():
+            web = spotify.WebApiBackend(client_id, store)
+            verifier = web.make_verifier()
+            url = web.authorize_url(verifier, spotify.REDIRECT_URI)
+            webbrowser.open(url)
+            self.app.post(lambda: self.login_state.configure(
+                text="En attente de ton autorisation dans le navigateur..."))
+            code = spotify.wait_for_authorization_code()
+            web.exchange_code(code, verifier, spotify.REDIRECT_URI)
+            return True
+
+        def done(_):
+            self.rebuild()
+
+        def failed(message):
+            try:
+                self.login_btn.set_enabled(True)
+                self.login_state.configure(text=f"Échec : {message}", fg=T.RED)
+            except tk.TclError:
+                pass
+
+        self.app.run_async(work, done, failed)
+
+    # -- Lecteur ----------------------------------------------------------------------------
+
+    def build_player(self):
+        card = tk.Frame(self.body, bg=T.BG_PANEL)
+        card.pack(fill="x")
+
+        self.player = tk.Canvas(card, height=180, bg=MC.PANEL, highlightthickness=0, bd=0)
+        self.player.pack(fill="x", padx=3, pady=3)
+
+        controls = tk.Frame(card, bg=T.BG_PANEL)
+        controls.pack(fill="x", padx=20, pady=(0, 18))
+        MinecraftButton(controls, "|◀", command=lambda: self.control("previous"),
+                        width=70, height=40, size=12, bg=T.BG_PANEL).pack(side="left")
+        self.play_button = MinecraftButton(controls, "▶ / ||",
+                                           command=lambda: self.control("playpause"),
+                                           width=110, height=40, size=11, bg=T.BG_PANEL)
+        self.play_button.pack(side="left", padx=8)
+        MinecraftButton(controls, "▶|", command=lambda: self.control("next"),
+                        width=70, height=40, size=12, bg=T.BG_PANEL).pack(side="left")
+
+        self.music_state = tk.Label(controls, text="", bg=T.BG_PANEL, fg=T.TEXT_DIM,
+                                    font=font(9))
+        self.music_state.pack(side="left", padx=16)
+
+        Button(controls, "Déconnecter Spotify", command=self.logout, width=180,
+               style="ghost", bg=T.BG_PANEL).pack(side="right")
+
+        tk.Label(self.body, text="TES PLAYLISTS", bg=T.BG_DEEP, fg=T.TEXT_DIM,
+                 font=font(9, "bold"), anchor="w").pack(fill="x", pady=(20, 8))
+
+        self.playlist_area = ScrollFrame(self.body, bg=T.BG_DEEP)
+        self.playlist_area.pack(fill="both", expand=True)
+
+        self.draw_player(spotify.Track())
+        self.load_playlists()
+
+    def draw_player(self, track):
+        """Dessine la carte du morceau en cours, au style du jeu."""
+        c = self.player
+        c.delete("all")
+        width = c.winfo_width() or 760
+
+        mc_bevel(c, 0, 0, width, 180, MC.PANEL_LIGHT, thickness=3)
+
+        cover = 120
+        cx, cy = 24, 30
+        c.create_rectangle(cx - 3, cy - 3, cx + cover + 3, cy + cover + 3,
+                           fill=MC.DARK, outline="")
+        pixel_art_cover(c, cx, cy, cover, track.title or "?")
+
+        text_x = cx + cover + 26
+        if track:
+            mc_text(c, text_x, cy + 16, track.title[:42] or "—", MC.TEXT, 13, anchor="w")
+            mc_text(c, text_x, cy + 46, track.artist[:46] or "", "#C8C8C8", 10, anchor="w")
+            if track.album:
+                mc_text(c, text_x, cy + 70, track.album[:46], "#9A9A9A", 9, anchor="w")
+
+            # Barre de progression, en aplats comme les jauges du jeu.
+            bar_y = cy + 100
+            bar_w = width - text_x - 30
+            c.create_rectangle(text_x, bar_y, text_x + bar_w, bar_y + 12,
+                               fill=MC.DARK, outline="")
+            if track.duration_ms:
+                ratio = min(1.0, track.progress_ms / track.duration_ms)
+                c.create_rectangle(text_x + 2, bar_y + 2,
+                                   text_x + 2 + (bar_w - 4) * ratio, bar_y + 10,
+                                   fill=MC.GREEN, outline="")
+                mc_text(c, text_x, bar_y + 30,
+                        f"{fmt_ms(track.progress_ms)} / {fmt_ms(track.duration_ms)}",
+                        "#9A9A9A", 9, anchor="w")
+            status = "EN LECTURE" if track.playing else "EN PAUSE"
+            mc_text(c, width - 24, cy + 16, status,
+                    MC.GREEN if track.playing else "#C8C8C8", 9, anchor="e")
+        else:
+            mc_text(c, text_x, cy + 40, "Rien en lecture", "#C8C8C8", 12, anchor="w")
+            mc_text(c, text_x, cy + 68, "Lance un morceau dans Spotify", "#9A9A9A", 9,
+                    anchor="w")
+
+    def schedule_refresh(self):
+        if not self.visible:
+            return
+        self.refresh_now_playing()
+        self._after_id = self.after(self.REFRESH_MS, self.schedule_refresh)
+
+    def refresh_now_playing(self):
+        if not self.backend:
+            return
+
+        def work():
+            return self.backend.now_playing()
+
+        def done(track):
+            try:
+                self.draw_player(track)
+                self.music_state.configure(text="")
+            except tk.TclError:
+                pass
+
+        def failed(message):
+            try:
+                self.music_state.configure(text=message[:70], fg=T.AMBER)
+            except tk.TclError:
+                pass
+
+        self.app.run_async(work, done, failed)
+
+    def control(self, action):
+        if not self.backend:
+            return
+        methods = {"playpause": self.backend.play_pause,
+                   "next": self.backend.next_track,
+                   "previous": self.backend.previous_track}
+
+        def work():
+            methods[action]()
+            time.sleep(0.4)      # Spotify met un instant à refléter le changement
+            return self.backend.now_playing()
+
+        def done(track):
+            self.draw_player(track)
+            self.music_state.configure(text="")
+
+        def failed(message):
+            self.music_state.configure(text=message[:80], fg=T.AMBER)
+
+        self.app.run_async(work, done, failed)
+
+    def load_playlists(self):
+        def work():
+            return self.backend.playlists()
+
+        def done(playlists):
+            self._playlists = playlists
+            self.playlist_area.clear()
+            if not playlists:
+                tk.Label(self.playlist_area.body, text="Aucune playlist trouvée.",
+                         bg=T.BG_DEEP, fg=T.TEXT_DIM, font=font(9)).pack(pady=20)
+                return
+            for pl in playlists:
+                PlaylistRow(self.playlist_area.body, self, pl).pack(fill="x", pady=3)
+
+        def failed(message):
+            self.playlist_area.clear()
+            tk.Label(self.playlist_area.body, text=f"Playlists indisponibles : {message}",
+                     bg=T.BG_DEEP, fg=T.AMBER, font=font(9), wraplength=700,
+                     justify="left").pack(pady=20)
+
+        self.app.run_async(work, done, failed)
+
+    def play_playlist(self, playlist):
+        def work():
+            self.backend.play_playlist(playlist["uri"])
+            time.sleep(0.6)
+            return self.backend.now_playing()
+
+        def done(track):
+            self.draw_player(track)
+            self.music_state.configure(text=f"Lecture de « {playlist['name']} »", fg=T.GREEN)
+
+        def failed(message):
+            self.music_state.configure(text=message[:90], fg=T.AMBER)
+
+        self.app.run_async(work, done, failed)
+
+    def logout(self):
+        store = self.token_store()
+        if store.exists():
+            store.unlink()
+        self.rebuild()
+
+
+def fmt_ms(ms):
+    seconds = int(ms / 1000)
+    return f"{seconds // 60}:{seconds % 60:02d}"
+
+
+class PlaylistRow(tk.Frame):
+    """Une playlist, cliquable pour lancer sa lecture."""
+
+    def __init__(self, parent, page, playlist):
+        super().__init__(parent, bg=T.BG_CARD, cursor="hand2")
+        self.page = page
+        self.playlist = playlist
+
+        inner = tk.Frame(self, bg=T.BG_CARD)
+        inner.pack(fill="x", padx=14, pady=10)
+
+        cover = tk.Canvas(inner, width=40, height=40, bg=T.BG_CARD, highlightthickness=0)
+        cover.pack(side="left")
+        pixel_art_cover(cover, 0, 0, 40, playlist["name"])
+
+        texts = tk.Frame(inner, bg=T.BG_CARD)
+        texts.pack(side="left", padx=(14, 10), fill="x", expand=True)
+        tk.Label(texts, text=playlist["name"], bg=T.BG_CARD, fg=T.TEXT,
+                 font=font(10, "bold"), anchor="w").pack(fill="x")
+        tk.Label(texts, text=f"{playlist['tracks']} morceaux", bg=T.BG_CARD, fg=T.TEXT_DIM,
+                 font=font(8), anchor="w").pack(fill="x")
+
+        MinecraftButton(inner, "JOUER", command=self.play, width=90, height=32, size=9,
+                        bg=T.BG_CARD).pack(side="right")
+
+        bind_all_children(self, "<Enter>", lambda e: self._paint(T.BG_HOVER))
+        bind_all_children(self, "<Leave>", lambda e: self._paint(T.BG_CARD))
+
+    def _paint(self, bg):
+        for widget in [self] + list(self.winfo_children()):
+            try:
+                widget.configure(bg=bg)
+            except tk.TclError:
+                pass
+            for child in widget.winfo_children():
+                try:
+                    child.configure(bg=bg)
+                except tk.TclError:
+                    pass
+                for sub in child.winfo_children():
+                    try:
+                        sub.configure(bg=bg)
+                    except tk.TclError:
+                        pass
+
+    def play(self):
+        self.page.play_playlist(self.playlist)
 
 
 # ----------------------------------------------------------------------------------------------
