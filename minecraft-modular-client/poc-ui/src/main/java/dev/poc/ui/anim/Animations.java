@@ -18,6 +18,16 @@ public final class Animations {
 
     private Animations() {}
 
+    /**
+     * Courbe d'interpolation. Interface dédiée plutôt que {@code DoubleUnaryOperator} : toute la
+     * chaîne d'animation est en {@code float} (c'est ce qu'attendent les uniformes GL), et passer
+     * par des doubles imposerait un transtypage à chaque frame pour aucun gain de précision.
+     */
+    @FunctionalInterface
+    public interface Curve {
+        float apply(float t);
+    }
+
     /** Interpolations classiques, normalisées sur [0,1]. */
     public static final class Easing {
         private Easing() {}
@@ -50,11 +60,11 @@ public final class Animations {
     public static final class Tween {
         private float from, to, value;
         private float elapsed, duration;
-        private java.util.function.DoubleUnaryOperator curve = Easing::easeOutCubic;
+        private Curve curve = Easing::easeOutCubic;
 
         public Tween(float initial) { this.value = this.from = this.to = initial; }
 
-        public Tween curve(java.util.function.DoubleUnaryOperator c) { this.curve = c; return this; }
+        public Tween curve(Curve c) { this.curve = c; return this; }
 
         public void to(float target, float durationSeconds) {
             if (Math.abs(target - to) < 1e-5f) return;
@@ -67,7 +77,7 @@ public final class Animations {
         public void update(float dt) {
             if (elapsed >= duration) { value = to; return; }
             elapsed = Math.min(elapsed + dt, duration);
-            float t = (float) curve.applyAsDouble(elapsed / duration);
+            float t = curve.apply(elapsed / duration);
             value = from + (to - from) * t;
         }
 

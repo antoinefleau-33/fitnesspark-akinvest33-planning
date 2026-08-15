@@ -7,4 +7,5 @@ include(
     "poc-adapters:adapter-1_8_9",
     "poc-adapters:adapter-1_20_1",
     "poc-modules:hud-example",
+    "poc-modules:be-diagnostics",
 )

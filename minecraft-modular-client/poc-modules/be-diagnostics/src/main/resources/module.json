@@ -1,0 +1,14 @@
+{
+  "id": "be-diagnostics",
+  "version": "1.0.0",
+  "name": "Diagnostic BlockEntity",
+  "description": "Analyse le chargement et le coût de rendu des BlockEntity : histogramme par type, chunks saturés, état du culling. Le mode traversant est réservé au solo.",
+  "entrypoint": "dev.poc.modules.bediag.BlockEntityDiagnosticsModule",
+  "apiVersion": "0.1",
+  "authors": ["poc"],
+  "gameVersions": [">=1.8.9"],
+  "depends": {},
+  "suggests": {},
+  "conflicts": {},
+  "isolated": true
+}

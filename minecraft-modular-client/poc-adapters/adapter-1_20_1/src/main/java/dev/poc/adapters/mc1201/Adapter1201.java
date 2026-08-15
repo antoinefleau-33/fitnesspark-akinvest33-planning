@@ -131,5 +131,101 @@ public final class Adapter1201 implements GameAdapter {
 
         @Override public boolean isScreenOpen() { return false; }
         @Override public boolean isTextInputFocused() { return false; }
+
+        /**
+         * Solo strict. {@code hasSingleplayerServer()} seul ne suffit pas : un monde solo
+         * « ouvert au LAN » satisfait cette condition tout en acceptant des joueurs distants.
+         * {@code isPublished()} est la partie qui compte, et elle bascule en cours de partie —
+         * d'où l'évaluation à chaque frame plutôt qu'une mise en cache au démarrage.
+         *
+         * <pre>{@code
+         * Minecraft mc = Minecraft.getInstance();
+         * IntegratedServer server = mc.getSingleplayerServer();
+         * return mc.hasSingleplayerServer()
+         *         && server != null
+         *         && !server.isPublished()
+         *         && mc.getCurrentServer() == null;
+         * }</pre>
+         */
+        @Override
+        public boolean isSingleplayer() {
+            return false;   // conservateur tant que l'adaptateur n'est pas câblé
+        }
+
+        /**
+         * Caméra + matrice view-projection <b>relative à la caméra</b>.
+         *
+         * <pre>{@code
+         * Camera cam = mc.gameRenderer.getMainCamera();
+         * Vec3 pos = cam.getPosition();
+         * // event fournit poseStack (déjà translaté de -camPos par le renderer) et projection
+         * Matrix4f vp = new Matrix4f(event.getProjectionMatrix())
+         *         .mul(event.getPoseStack().last().pose());
+         * float[] out = new float[16];
+         * vp.get(out);   // JOML écrit en column-major, ce qu'attend glUniformMatrix4fv
+         * return new Camera(pos.x, pos.y, pos.z, cam.getYRot(), cam.getXRot(), out);
+         * }</pre>
+         *
+         * <p>Attention au sens de la multiplication : {@code projection.mul(modelView)}, pas
+         * l'inverse. Inversé, les boîtes suivent la rotation de la tête au lieu de rester ancrées
+         * dans le monde — l'erreur est visuellement déroutante et facile à mal diagnostiquer.
+         */
+        @Override
+        public Camera camera() {
+            return new Camera(0, 0, 0, 0f, 0f,
+                    new float[]{1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1});
+        }
+
+        /**
+         * Parcours des BlockEntity chargées côté client.
+         *
+         * <p>Il n'existe pas de liste globale côté client : il faut passer par les chunks. En
+         * 1.20.1, {@code ClientChunkCache.storage} est privé, d'où un mixin accesseur —
+         * l'alternative, {@code level.getChunk(x, z)} sur toute la grille de distance de rendu,
+         * force le chargement de chunks vides et fausse précisément la mesure qu'on veut prendre.
+         *
+         * <pre>{@code
+         * ClientLevel level = mc.level;
+         * BlockEntityRenderDispatcher dispatcher = mc.getBlockEntityRenderDispatcher();
+         * Vec3 camPos = mc.gameRenderer.getMainCamera().getPosition();
+         *
+         * for (LevelChunk chunk : ((ClientChunkCacheAccessor) level.getChunkSource()).storage()) {
+         *     if (chunk == null) continue;
+         *     for (Map.Entry<BlockPos, BlockEntity> e : chunk.getBlockEntities().entrySet()) {
+         *         BlockPos p = e.getKey();
+         *         BlockEntity be = e.getValue();
+         *
+         *         BlockEntityRenderer<BlockEntity> renderer = dispatcher.getRenderer(be);
+         *         boolean hasRenderer = renderer != null;
+         *         // shouldRender() intègre getViewDistance() ET le test spécifique du BER
+         *         // (un panneau se cull plus tôt qu'un coffre) : c'est le vrai prédicat de rendu.
+         *         boolean inRange = hasRenderer && renderer.shouldRender(be, camPos);
+         *
+         *         // Ticking : le bloc doit être un EntityBlock ET fournir un ticker côté client.
+         *         // Beaucoup de BE ont un ticker serveur et aucun client — les confondre
+         *         // surestime massivement la charge client (les hoppers en sont l'exemple type).
+         *         boolean ticking = be.getBlockState().getBlock() instanceof EntityBlock eb
+         *                 && eb.getTicker(level, be.getBlockState(), be.getType()) != null;
+         *
+         *         visitor.visit(new BlockEntitySnapshot(
+         *                 p.getX(), p.getY(), p.getZ(),
+         *                 BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(be.getType()).toString(),
+         *                 hasRenderer, ticking, inRange,
+         *                 chunk.getPos().x, chunk.getPos().z,
+         *                 camPos.distanceToSqr(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5)));
+         *     }
+         * }
+         * }</pre>
+         *
+         * <p>Allocation : ce bloc crée un {@code BlockEntitySnapshot} par BE et par frame. Sur un
+         * monde à 20 000 BE c'est ~1,2 Mo/frame, soit 70 Mo/s d'ordures — assez pour provoquer des
+         * pauses GC que l'outil attribuerait ensuite au jeu. En production, réutiliser une
+         * instance mutable passée au visiteur, ou ne recollecter qu'une frame sur quatre en
+         * conservant l'agrégat.
+         */
+        @Override
+        public void forEachBlockEntity(BlockEntityVisitor visitor) {
+            // Sans jeu chargé, rien à visiter.
+        }
     }
 }

@@ -26,7 +26,15 @@ Il vérifie six comportements :
 5. la sérialisation d'un chord est indépendante de la disposition clavier ;
 6. tri topologique des modules, et cycle restitué avec son chemin exact.
 
-`poc-ui` demande LWJGL 3 et passe par Gradle (`./gradlew :poc-ui:build`).
+Le second démonstrateur vérifie la logique de diagnostic BlockEntity sur un monde synthétique
+(4 000 entités, deux chunks volontairement saturés) :
+
+```bash
+java -cp /tmp/out dev.poc.modules.bediag.DiagnosticsDemo
+```
+
+`poc-ui` demande LWJGL 3 et passe par Gradle (`./gradlew :poc-ui:build`). Pour un typecheck rapide
+sans Gradle, il suffit des trois jars `lwjgl`, `lwjgl-opengl` et `lwjgl-glfw` 3.3.4 au classpath.
 
 ## Structure
 
@@ -53,6 +61,8 @@ poc-adapters/  Un adaptateur par famille de version. Le SEUL code autorisé à i
 
 poc-modules/   Modules d'exemple. Ne référencent jamais le jeu, uniquement GameBridge —
                d'où un jar unique qui fonctionne de 1.8.9 à 1.20.1.
+               ├── hud-example/    HUD minimal
+               └── be-diagnostics/ analyse du coût de rendu et de tick des BlockEntity
 ```
 
 ## Documentation
@@ -63,6 +73,7 @@ poc-modules/   Modules d'exemple. Ne référencent jamais le jeu, uniquement Gam
 | [02 — UI et rendu](docs/02-ui-rendering.md) | OpenGL vs Vulkan, SDF, instanciation, ressorts vs courbes, MSDF, dual-kawase |
 | [03 — Changement de version](docs/03-version-switching.md) | **le morceau principal** : schéma d'architecture, contraintes JNI, remapping, séquence de bascule, fuites |
 | [04 — Keybindings](docs/04-keybindings.md) | anatomie du bug `key.anything`, résolveur, contextes, scancodes, touches collées |
+| [05 — Diagnostic BlockEntity](docs/05-blockentity-diagnostics.md) | rendu instancié de boîtes, coordonnées relatives caméra, état GL et cache Blaze3D, politique d'occlusion |
 
 ## Les quatre décisions qui structurent tout le reste
 
@@ -91,7 +102,9 @@ déchargement fiable, il n'y a pas de changement de version.
 | Modèle de keybinds, résolveur, pipeline d'entrée | complet, exécutable et vérifié |
 | Chargement de modules, classloader, résolution semver, bus | complet, exécutable et vérifié |
 | Classloader de version, SessionScope, machine à états de bascule | complet, non testé contre un vrai jar Minecraft |
-| Renderer SDF, animations, fenêtre GLFW | complet, nécessite LWJGL pour tourner |
+| Renderer SDF, animations, fenêtre GLFW | complet, typechecké contre LWJGL 3.3.4, non exécuté |
+| Diagnostic BlockEntity (filtres, agrégation, hotspots) | complet, exécutable et vérifié |
+| Renderer de boîtes instancié + politique d'occlusion | complet, typechecké ; la politique est vérifiée headless |
 | Adaptateurs de version | squelettes commentés — c'est le gros du travail restant |
 | Provisionnement (téléchargement, remapping) | interface + pipeline documenté, implémentation à écrire |
 | Rendu de texte | non fait, choix documenté (MSDF) |
