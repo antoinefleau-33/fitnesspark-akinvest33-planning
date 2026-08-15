@@ -478,14 +478,15 @@ def read_mod_info(jar_path):
     lisibilité de la liste. Tout est enveloppé : un jar corrompu ou un mod Forge posé là par erreur
     ne doit pas faire disparaître toute la liste.
     """
-    info = {"name": jar_path.name, "version": "", "description": "", "icon": None,
-            "mc": ""}
+    info = {"name": jar_path.name, "id": "", "version": "", "description": "",
+            "icon": None, "mc": "", "depends": {}, "provides": []}
     try:
         with zipfile.ZipFile(jar_path) as z:
             names = z.namelist()
             if "fabric.mod.json" not in names:
                 return info
             meta = json.loads(z.read("fabric.mod.json").decode("utf-8", "replace"))
+            info["id"] = meta.get("id", "")
             info["name"] = meta.get("name") or meta.get("id") or jar_path.name
             info["version"] = str(meta.get("version", ""))
             info["description"] = (meta.get("description") or "").strip().replace("\n", " ")
@@ -498,6 +499,17 @@ def read_mod_info(jar_path):
             if isinstance(mc, list):
                 mc = " ".join(str(x) for x in mc)
             info["mc"] = str(mc) if mc else ""
+
+            # Dépendances declarees, hors briques fournies par le jeu ou le chargeur.
+            info["depends"] = {k: v for k, v in depends.items()
+                               if k not in ("minecraft", "java", "fabricloader")}
+
+            # « provides » : identifiants supplémentaires couverts par ce mod. Fabric API est
+            # découpée en dizaines de modules (fabric-resource-loader-v0, fabric-networking-...)
+            # qu'elle déclare ainsi. Sans les lire, chacun passerait pour une dépendance
+            # manquante alors qu'il est déjà là.
+            provides = meta.get("provides") or []
+            info["provides"] = [str(x) for x in provides] if isinstance(provides, list) else []
 
             icon = meta.get("icon")
             if isinstance(icon, dict):

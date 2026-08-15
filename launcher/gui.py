@@ -814,9 +814,12 @@ class ModsPage(Page):
                style="ghost", bg=T.BG_DEEP).pack(side="left", padx=8)
         Button(actions, "Ouvrir le dossier", command=self.open_folder, width=150,
                style="ghost", bg=T.BG_DEEP).pack(side="left")
+        self.fix_btn = Button(actions, "Réparer les dépendances", command=self.fix_dependencies,
+                              width=200, style="ghost", bg=T.BG_DEEP)
+        self.fix_btn.pack(side="left", padx=8)
 
         self.count_label = tk.Label(self, text="", bg=T.BG_DEEP, fg=T.TEXT_DIM,
-                                    font=font(9), anchor="w")
+                                    font=font(9), anchor="w", justify="left", wraplength=780)
         self.count_label.pack(fill="x", padx=34, pady=(0, 8))
 
         self.list_area = ScrollFrame(self, bg=T.BG_DEEP)
@@ -849,7 +852,18 @@ class ModsPage(Page):
             return
 
         active = sum(1 for j in jars if j.suffix == ".jar")
-        self.count_label.configure(text=f"{len(jars)} mods — {active} actifs")
+        try:
+            missing = core.missing_dependencies(self.mods_dir, read_mod_info)
+        except Exception:
+            missing = {}
+        if missing:
+            self.count_label.configure(
+                text=f"{len(jars)} mods — {len(missing)} dépendance(s) manquante(s) : "
+                     f"{', '.join(sorted(missing))}.\n"
+                     "Le jeu refusera de démarrer. Clique sur « Réparer les dépendances ».",
+                fg=T.AMBER)
+        else:
+            self.count_label.configure(text=f"{len(jars)} mods — {active} actifs", fg=T.TEXT_DIM)
 
         for jar in jars:
             ModRow(self.list_area.body, self.app, jar, self.refresh).pack(fill="x", pady=3)
@@ -859,6 +873,52 @@ class ModsPage(Page):
         box.pack(fill="both", expand=True, pady=60)
         tk.Label(box, text=title, bg=T.BG_DEEP, fg=T.TEXT, font=font(13, "bold")).pack()
         tk.Label(box, text=hint, bg=T.BG_DEEP, fg=T.TEXT_DIM, font=font(9)).pack(pady=(6, 0))
+
+    def fix_dependencies(self):
+        """
+        Installe ce que les mods présents réclament et qui manque.
+
+        C\'est la réponse à l\'écran « Incompatible mods found! » de Fabric : il liste des
+        identifiants (cloth-config, almanac...) sans indiquer où les récupérer.
+        """
+        mc = self.app.cfg.data.get("last_version", "").split("-")[-1]
+        if not mc:
+            self.app.toast("Installe d\'abord une version.", error=True)
+            return
+        self.fix_btn.set_enabled(False)
+        self.count_label.configure(text="Analyse des dépendances...", fg=T.TEXT_DIM)
+
+        mods_dir = self.mods_dir
+
+        def work():
+            from ui import read_mod_info
+            return core.repair_dependencies(
+                mods_dir, mc, read_mod_info,
+                on_progress=lambda m: self.app.post(
+                    lambda: self.count_label.configure(text=m, fg=T.TEXT_DIM)))
+
+        def done(result):
+            installed, unresolved = result
+            self.fix_btn.set_enabled(True)
+            self.refresh()
+            if not installed and not unresolved:
+                self.count_label.configure(text="Toutes les dépendances sont présentes.",
+                                           fg=T.GREEN)
+            elif unresolved:
+                self.app.toast(
+                    f"{len(installed)} dépendance(s) installée(s).\n\n"
+                    "Introuvables sur Modrinth :\n"
+                    + "\n".join(f"- {d} ({why})" for d, why in unresolved.items()), error=True)
+            else:
+                self.app.toast(f"{len(installed)} dépendance(s) installée(s) :\n\n"
+                               + "\n".join(installed))
+
+        def failed(message):
+            self.fix_btn.set_enabled(True)
+            self.refresh()
+            self.app.toast(message, error=True)
+
+        self.app.run_async(work, done, failed)
 
     def add_mods(self):
         if not self.mods_dir.is_dir():
@@ -1036,27 +1096,23 @@ class PerfPackDialog(tk.Toplevel):
         target = self.mods_page.mods_dir
 
         def work():
-            import json as _json
-            import urllib.parse
             installed, missing = [], []
             for i, slug in enumerate(self.MODS, 1):
                 self.app.post(lambda s=slug, i=i: (
                     self.progress.set(i / len(self.MODS)),
                     self.status.configure(text=f"{s} ({i}/{len(self.MODS)})")))
-                query = urllib.parse.urlencode({
-                    "game_versions": _json.dumps([self.mc]),
-                    "loaders": _json.dumps(["fabric"]),
-                })
-                status, versions = core.http_json(
-                    f"https://api.modrinth.com/v2/project/{slug}/version?{query}")
-                if status != 200 or not versions:
+                try:
+                    # modrinth_install tire aussi les dependances. Les telecharger sans elles
+                    # produit un ecran "Incompatible mods found!" au demarrage de Fabric, qui
+                    # liste des identifiants sans dire ou les trouver.
+                    core.modrinth_install(slug, self.mc, target)
+                    installed.append(slug)
+                except Exception:
                     missing.append(slug)
-                    continue
-                stable = [v for v in versions if v.get("version_type") == "release"] or versions
-                best = stable[0]
-                file = next((f for f in best["files"] if f.get("primary")), best["files"][0])
-                core.download(file["url"], target / file["filename"])
-                installed.append(slug)
+
+            self.app.post(lambda: self.status.configure(text="Vérification des dépendances..."))
+            from ui import read_mod_info
+            core.repair_dependencies(target, self.mc, read_mod_info)
             return installed, missing
 
         def done(result):

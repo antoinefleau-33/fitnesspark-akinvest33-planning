@@ -191,6 +191,29 @@ Ce chiffre de 20 s a été obtenu sur une connexion rapide. Chez toi, le temps s
 ton débit : 580 Mo sur une fibre à 100 Mb/s font environ une minute, incompressible. Le point
 important est qu'il n'y a plus de temps perdu ailleurs que dans le transfert lui-même.
 
+## « Incompatible mods found! » au démarrage
+
+Fabric refuse de lancer le jeu et liste des identifiants :
+
+```
+Mod 'More Culling' requires version 16.0.0 or later of cloth-config, which is missing!
+Mod 'LetMeDespawn' requires version 1.6.2 or later of almanac, which is missing!
+```
+
+Beaucoup de mods s'appuient sur des bibliothèques (cloth-config, almanac, Fabric API...) qui ne
+sont pas incluses dans leur fichier. Fabric donne les noms mais pas où les trouver.
+
+**Solution : page Mods → « Réparer les dépendances ».** Le lanceur lit ce que chaque mod réclame,
+le compare à ce qui est installé, et récupère ce qui manque depuis Modrinth. Il recommence en
+boucle, parce qu'installer Fabric API satisfait d'un coup des dizaines de modules, et que les
+bibliothèques ajoutées ont parfois leurs propres dépendances.
+
+La page signale aussi le problème d'elle-même dès qu'elle détecte un manque, avant que tu lances
+le jeu.
+
+*(Ce cas venait d'un défaut du bouton « Pack performance » de la version 2.1, qui téléchargeait
+les mods sans leurs dépendances. Corrigé en 2.2.)*
+
 ## « Mes mods ne se chargent pas »
 
 Regarde le rapport de crash ou le titre du jeu : s'il indique **`Launched Version: 26.2`** et

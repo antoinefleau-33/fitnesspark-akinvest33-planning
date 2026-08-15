@@ -37,7 +37,7 @@ import zipfile
 from pathlib import Path
 
 APP_NAME = "poclauncher"
-APP_VERSION = "2.1.0"
+APP_VERSION = "2.2.0"
 
 # La console Windows utilise encore cp1252 par défaut dans certaines configurations : sans ça, le
 # moindre accent fait planter le script sur un UnicodeEncodeError, ce qui donne l'impression que
@@ -324,6 +324,104 @@ def version_satisfies(version, constraint):
             if _version_tuple(term) != current:
                 return False
     return True
+
+
+# Identifiants de mod dont le nom sur Modrinth diffère. La règle générale est que l'identifiant
+# déclaré dans fabric.mod.json correspond au slug Modrinth ; ces quelques-uns font exception.
+MOD_ID_ALIASES = {
+    "fabric": "fabric-api",
+    "fabric_api": "fabric-api",
+    "cloth_config": "cloth-config",
+    "clothconfig": "cloth-config",
+    "roughlyenoughitems": "rei",
+}
+
+
+def missing_dependencies(mods_dir: Path, read_info):
+    """
+    Dépendances déclarées par les mods installés mais absentes du dossier.
+
+    Fabric refuse de démarrer le jeu quand il en manque une, avec un écran d'erreur qui liste les
+    identifiants sans dire où les trouver. Cette fonction fait le rapprochement pour l'utilisateur.
+
+    @param read_info  fonction (Path) -> dict, fournie par ui.read_mod_info
+    @return {identifiant manquant: [mods qui le réclament]}
+    """
+    installed = {}
+    required = {}
+
+    for jar in list(mods_dir.glob("*.jar")):
+        info = read_info(jar)
+        if info.get("id"):
+            installed[info["id"]] = info
+        for provided in info.get("provides") or []:
+            installed[provided] = info
+        for dep_id in (info.get("depends") or {}):
+            required.setdefault(dep_id, []).append(info.get("name") or jar.name)
+
+    # Les modules de Fabric API portent tous la forme « fabric-...-vN ». Quand Fabric API est
+    # présente mais d'une version qui ne déclare pas encore « provides », ce filet évite de les
+    # signaler un par un.
+    fabric_api_present = any(k in installed for k in ("fabric-api", "fabric"))
+
+    def is_fabric_module(dep):
+        return fabric_api_present and re.fullmatch(r"fabric-[\w-]+-v\d+", dep) is not None
+
+    return {dep: askers for dep, askers in required.items()
+            if dep not in installed and not is_fabric_module(dep)}
+
+
+def install_dependency(dep_id, mc_version, mods_dir: Path, loader="fabric"):
+    """Installe une dépendance manquante depuis Modrinth, en résolvant les siennes au passage."""
+    slug = MOD_ID_ALIASES.get(dep_id, dep_id)
+    try:
+        return modrinth_install(slug, mc_version, mods_dir, loader)
+    except Exception:
+        # L'identifiant ne correspond pas à un slug : on cherche par nom.
+        hits, _ = modrinth_search(slug, mc_version, loader, limit=5)
+        for hit in hits:
+            if hit.get("slug") == slug or hit.get("title", "").lower() == slug.replace("-", " "):
+                return modrinth_install(hit["project_id"], mc_version, mods_dir, loader)
+        if hits:
+            return modrinth_install(hits[0]["project_id"], mc_version, mods_dir, loader)
+        raise
+
+
+def repair_dependencies(mods_dir: Path, mc_version, read_info, loader="fabric",
+                        on_progress=None):
+    """
+    Installe toutes les dépendances manquantes, en boucle.
+
+    Une seule passe ne suffit pas : installer Fabric API satisfait d'un coup des dizaines de
+    modules qui semblaient manquants, et les mods qu'on vient d'ajouter apportent à leur tour
+    leurs propres dépendances. On recommence donc jusqu'à ce que plus rien ne bouge.
+
+    @return (installés, introuvables)
+    """
+    installed_all, unresolved = [], {}
+
+    for _ in range(6):          # garde-fou : une boucle de dépendances ne doit pas tourner sans fin
+        missing = missing_dependencies(mods_dir, read_info)
+        missing = {d: a for d, a in missing.items() if d not in unresolved}
+        if not missing:
+            break
+
+        for dep_id, askers in sorted(missing.items()):
+            if on_progress:
+                on_progress(f"Installation de {dep_id} (requis par {', '.join(askers)})")
+            try:
+                installed_all += install_dependency(dep_id, mc_version, mods_dir, loader)
+            except Exception as e:
+                # Introuvable sur Modrinth : on le note et on continue, plutôt que de tout
+                # interrompre pour une seule dépendance exotique.
+                unresolved[dep_id] = f"{', '.join(askers)} — {e}"
+
+    # Un identifiant peut avoir echoue a la premiere passe puis etre satisfait par un mod
+    # installe ensuite (typiquement les modules apportes par Fabric API). On ne signale comme
+    # introuvable que ce qui manque VRAIMENT a la fin.
+    still_missing = missing_dependencies(mods_dir, read_info)
+    unresolved = {d: why for d, why in unresolved.items() if d in still_missing}
+    return sorted(set(installed_all)), unresolved
 
 
 MODRINTH_CATEGORIES = [
