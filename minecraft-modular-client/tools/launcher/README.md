@@ -3,20 +3,53 @@
 Un seul fichier Python, aucune dépendance à installer. Il télécharge le jeu, installe Fabric, gère
 la connexion Microsoft et lance Minecraft.
 
-## Démarrage rapide
+## Démarrage — le plus simple
+
+**Windows :** double-clique sur `Lancer.bat`. Un menu s'ouvre, tu choisis par numéro.
+
+**Mac / Linux :**
 
 ```bash
-python3 mclaunch.py setup            # une seule fois
-python3 mclaunch.py login            # connexion Microsoft
+python3 mclaunch.py
+```
+
+Sans argument, le lanceur ouvre un menu :
+
+```
+========================================================
+   LANCEUR MINECRAFT
+========================================================
+  Dossier de jeu : C:\Users\...\game
+  Compte         : non connecte
+  Installe       : rien pour l'instant
+
+  1) JOUER
+  2) Installer une version (avec Fabric)
+  3) Se connecter a mon compte Microsoft
+  4) Configurer le lanceur
+  ...
+```
+
+Suis l'ordre **4 → 3 → 2 → 1** la première fois : configurer, se connecter, installer, jouer.
+Ensuite, seul le choix 1 sert.
+
+## En ligne de commande
+
+Les sous-commandes restent disponibles si tu préfères :
+
+```bash
+python3 mclaunch.py setup
+python3 mclaunch.py login
 python3 mclaunch.py install 26.2 --fabric
 python3 mclaunch.py play 26.2
+python3 mclaunch.py play 26.2 --dry-run   # affiche la commande sans lancer
 ```
 
-Pour vérifier sans rien lancer :
+## Si tu vois « error: the following arguments are required: command »
 
-```bash
-python3 mclaunch.py play 26.2 --dry-run
-```
+C'était le comportement de la version 1.0 quand on lançait le script sans rien derrière. Ce n'est
+pas une panne : il manquait juste une sous-commande. Depuis la 1.1, le script ouvre le menu à la
+place. Récupère la dernière version du fichier.
 
 ## Ce qu'il te faut avant
 

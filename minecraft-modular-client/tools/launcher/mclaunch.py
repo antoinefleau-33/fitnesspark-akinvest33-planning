@@ -33,7 +33,17 @@ import zipfile
 from pathlib import Path
 
 APP_NAME = "poclauncher"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
+
+# La console Windows utilise encore cp1252 par défaut dans certaines configurations : sans ça, le
+# moindre accent fait planter le script sur un UnicodeEncodeError, ce qui donne l'impression que
+# le lanceur est cassé alors qu'il s'agit juste d'un problème d'affichage.
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
 
 MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
 FABRIC_META = "https://meta.fabricmc.net/v2"
@@ -222,6 +232,28 @@ class AuthError(Exception):
     pass
 
 
+def short_azure_error(resp):
+    """
+    Azure renvoie des messages de plusieurs lignes avec identifiants de trace et horodatage.
+    On garde le code et la première phrase, et on traduit les deux causes les plus fréquentes —
+    un pavé illisible décourage plus qu'il n'aide.
+    """
+    description = resp.get("error_description") or str(resp)
+    code_match = re.search(r"(AADSTS\d+)", description)
+    code = code_match.group(1) if code_match else resp.get("error", "erreur inconnue")
+
+    if code == "AADSTS700016":
+        return (f"{code} : cet identifiant d'application n'existe pas. "
+                "Vérifie que tu as bien copié l'« ID d'application (client) » "
+                "depuis la page Vue d'ensemble du portail Azure.")
+    if code == "AADSTS7000218":
+        return (f"{code} : l'application n'autorise pas les clients publics. "
+                "Dans Azure : Authentification -> « Autoriser les flux clients publics » -> Oui.")
+
+    first_sentence = description.split(". ")[0].split("Trace ID")[0].strip()
+    return f"{code} : {first_sentence}"
+
+
 class Account:
     """Session de compte, mise en cache sur disque. Seul le refresh_token est durable."""
 
@@ -260,13 +292,15 @@ def device_code_login(client_id):
                              data={"client_id": client_id, "scope": "XboxLive.signin offline_access"},
                              headers={"Content-Type": "application/x-www-form-urlencoded"})
     if status != 200:
-        raise AuthError(f"Azure a refusé la demande ({status}) : {resp.get('error_description', resp)}")
+        raise AuthError(f"Azure a refusé la demande : {short_azure_error(resp)}")
 
+    # Encadré en ASCII pur : c'est l'information que l'utilisateur DOIT pouvoir lire, et les
+    # caractères de dessin Unicode s'affichent en carrés dans certaines consoles Windows.
     print()
-    print("  ┌────────────────────────────────────────────────────┐")
-    print(f"  │  Ouvre : {resp['verification_uri']:<41s}│")
-    print(f"  │  Code  : {resp['user_code']:<41s}│")
-    print("  └────────────────────────────────────────────────────┘")
+    print("  +----------------------------------------------------+")
+    print(f"  |  Ouvre cette page : {resp['verification_uri']:<30s} |")
+    print(f"  |  Tape ce code     : {resp['user_code']:<30s} |")
+    print("  +----------------------------------------------------+")
     print()
     print("  En attente de la validation...", end="", flush=True)
 
@@ -801,13 +835,160 @@ def cmd_play(args, config: Config):
         return 1
 
 
+def installed_versions(game_dir: Path):
+    """Versions présentes sur le disque, profils Fabric compris."""
+    versions_dir = game_dir / "versions"
+    if not versions_dir.is_dir():
+        return []
+    found = []
+    for entry in sorted(versions_dir.iterdir()):
+        if (entry / f"{entry.name}.json").exists():
+            found.append(entry.name)
+    return found
+
+
+def playable_name(version_id):
+    """Affiche « 26.2 (Fabric) » plutôt que « fabric-loader-0.19.3-26.2 »."""
+    match = re.match(r"fabric-loader-[\d.]+-(.+)$", version_id)
+    return f"{match.group(1)} (Fabric)" if match else version_id
+
+
+def cmd_menu(config: Config):
+    """
+    Menu interactif, affiché quand le script est lancé sans argument.
+
+    C'est le mode par défaut : lancer un programme sans rien taper et recevoir un message
+    d'erreur d'argparse donne l'impression que l'outil est cassé, alors qu'il attend juste une
+    sous-commande. Les sous-commandes restent disponibles pour l'usage en ligne de commande.
+    """
+    while True:
+        account = Account(config.root)
+        game_dir = config.game_dir
+        versions = installed_versions(game_dir)
+        last = config.data.get("last_version")
+
+        print()
+        print("=" * 56)
+        print("   LANCEUR MINECRAFT")
+        print("=" * 56)
+
+        if not config.client_id:
+            print("  Configuration  : INCOMPLETE, commence par le choix 4")
+        else:
+            print(f"  Dossier de jeu : {game_dir}")
+
+        if account.data.get("name"):
+            etat = "connecte" if account.valid else "session expiree (renouvelee au lancement)"
+            print(f"  Compte         : {account.data['name']} ({etat})")
+        else:
+            print("  Compte         : non connecte")
+
+        if versions:
+            print(f"  Installe       : {', '.join(playable_name(v) for v in versions)}")
+        else:
+            print("  Installe       : rien pour l'instant")
+
+        print()
+        if last and versions:
+            print(f"  1) JOUER  ({playable_name(last)})")
+        else:
+            print("  1) JOUER")
+        print("  2) Installer une version (avec Fabric)")
+        print("  3) Se connecter a mon compte Microsoft")
+        print("  4) Configurer le lanceur")
+        print("  5) Voir les versions disponibles")
+        print("  6) Se deconnecter")
+        print("  0) Quitter")
+        print()
+
+        try:
+            choice = input("  Ton choix : ").strip()
+        except EOFError:
+            return 0
+
+        print()
+        try:
+            if choice == "0":
+                return 0
+
+            elif choice == "1":
+                if not config.client_id:
+                    print("  Configure d'abord le lanceur (choix 4).")
+                elif not versions:
+                    print("  Aucune version installee. Utilise le choix 2.")
+                else:
+                    target = last if last in versions else None
+                    if not target:
+                        print("  Versions installees :")
+                        for i, v in enumerate(versions, 1):
+                            print(f"    {i}) {playable_name(v)}")
+                        pick = input("  Laquelle ? ").strip()
+                        if pick.isdigit() and 1 <= int(pick) <= len(versions):
+                            target = versions[int(pick) - 1]
+                        else:
+                            continue
+                    config.data["last_version"] = target
+                    config.save()
+                    args = argparse.Namespace(version=target, dry_run=False)
+                    cmd_play(args, config)
+
+            elif choice == "2":
+                if not config.client_id:
+                    print("  Configure d'abord le lanceur (choix 4).")
+                    continue
+                manifest = fetch_manifest()
+                latest = manifest["latest"]["release"]
+                asked = input(f"  Quelle version ? [{latest}] ").strip() or latest
+                fabric = input("  Installer Fabric (pour les mods) ? [O/n] ").strip().lower()
+                args = argparse.Namespace(version=asked,
+                                          fabric=fabric not in ("n", "non", "no"),
+                                          loader=None)
+                cmd_install(args, config)
+                # Mémorise le profil Fabric plutôt que la version nue : c'est celui qu'on lance.
+                fresh = installed_versions(config.game_dir)
+                match = [v for v in fresh if v.endswith(asked)]
+                config.data["last_version"] = match[-1] if match else asked
+                config.save()
+
+            elif choice == "3":
+                cmd_login(argparse.Namespace(force=False), config)
+
+            elif choice == "4":
+                cmd_setup(argparse.Namespace(), config)
+                config = Config(config.root)
+
+            elif choice == "5":
+                cmd_versions(argparse.Namespace(limit=10), config)
+
+            elif choice == "6":
+                cmd_logout(argparse.Namespace(), config)
+
+            else:
+                print("  Choix inconnu.")
+
+        except SystemExit as e:
+            print(f"  Arret : {e}")
+        except AuthError as e:
+            print(f"  Probleme de connexion : {e}")
+        except urllib.error.URLError as e:
+            print(f"  Probleme reseau : {e.reason}")
+        except Exception as e:
+            print(f"  Erreur inattendue : {type(e).__name__} : {e}")
+
+        try:
+            input("\n  [Entree] pour revenir au menu... ")
+        except EOFError:
+            return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="mclaunch.py",
         description="Lanceur Minecraft avec authentification Microsoft.")
     parser.add_argument("--root", default=str(Path.home() / f".{APP_NAME}"),
                         help="dossier de configuration du lanceur")
-    sub = parser.add_subparsers(dest="command", required=True)
+    # Non requis : sans sous-commande, on ouvre le menu interactif.
+    sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("setup", help="configurer le lanceur")
 
@@ -831,6 +1012,9 @@ def main():
 
     args = parser.parse_args()
     config = Config(Path(args.root).expanduser())
+
+    if not args.command:
+        return cmd_menu(config)
 
     handlers = {
         "setup": cmd_setup, "login": cmd_login, "logout": cmd_logout,
