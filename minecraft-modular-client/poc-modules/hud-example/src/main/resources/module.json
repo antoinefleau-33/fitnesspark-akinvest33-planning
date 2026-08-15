@@ -1,0 +1,14 @@
+{
+  "id": "hud-example",
+  "version": "1.0.0",
+  "name": "HUD d'exemple",
+  "description": "Affiche coordonnées et FPS. Démontre l'API version-agnostique.",
+  "entrypoint": "dev.poc.modules.hud.HudModule",
+  "apiVersion": "0.1",
+  "authors": ["poc"],
+  "gameVersions": [">=1.8.9"],
+  "depends": {},
+  "suggests": {},
+  "conflicts": {},
+  "isolated": true
+}

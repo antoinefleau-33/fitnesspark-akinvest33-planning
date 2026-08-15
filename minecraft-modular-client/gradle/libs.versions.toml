@@ -1,0 +1,25 @@
+[versions]
+lwjgl = "3.3.4"
+asm = "9.7.1"
+mixin = "0.8.7"
+tinyRemapper = "0.10.4"
+slf4j = "2.0.16"
+
+[libraries]
+lwjgl-bom      = { module = "org.lwjgl:lwjgl-bom",        version.ref = "lwjgl" }
+lwjgl-core     = { module = "org.lwjgl:lwjgl" }
+lwjgl-glfw     = { module = "org.lwjgl:lwjgl-glfw" }
+lwjgl-opengl   = { module = "org.lwjgl:lwjgl-opengl" }
+lwjgl-stb      = { module = "org.lwjgl:lwjgl-stb" }
+lwjgl-nanovg   = { module = "org.lwjgl:lwjgl-nanovg" }
+lwjgl-jemalloc = { module = "org.lwjgl:lwjgl-jemalloc" }
+
+asm          = { module = "org.ow2.asm:asm",           version.ref = "asm" }
+asm-tree     = { module = "org.ow2.asm:asm-tree",      version.ref = "asm" }
+asm-commons  = { module = "org.ow2.asm:asm-commons",   version.ref = "asm" }
+mixin        = { module = "org.spongepowered:mixin",   version.ref = "mixin" }
+tinyRemapper = { module = "net.fabricmc:tiny-remapper", version.ref = "tinyRemapper" }
+slf4j-api    = { module = "org.slf4j:slf4j-api",       version.ref = "slf4j" }
+
+[bundles]
+lwjgl = ["lwjgl-core", "lwjgl-glfw", "lwjgl-opengl", "lwjgl-stb", "lwjgl-nanovg", "lwjgl-jemalloc"]

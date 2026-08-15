@@ -1,0 +1,10 @@
+build/
+out/
+.gradle/
+*.class
+
+# Artefacts de provisionnement : téléchargés et remappés localement, jamais versionnés.
+versions/
+libraries/
+assets/
+natives/
