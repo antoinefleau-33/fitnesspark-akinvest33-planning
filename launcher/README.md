@@ -191,6 +191,25 @@ Ce chiffre de 20 s a été obtenu sur une connexion rapide. Chez toi, le temps s
 ton débit : 580 Mo sur une fibre à 100 Mb/s font environ une minute, incompressible. Le point
 important est qu'il n'y a plus de temps perdu ailleurs que dans le transfert lui-même.
 
+## « Mes mods ne se chargent pas »
+
+Regarde le rapport de crash ou le titre du jeu : s'il indique **`Launched Version: 26.2`** et
+**`Is Modded: Probably not`**, c'est que la version **sans Fabric** a été lancée.
+
+Après installation, deux lignes apparaissent sur la page Jouer :
+
+| Ligne | Pastille | Effet |
+|---|---|---|
+| `26.2` | **SANS MODS** (rouge) | version d'origine, tes mods sont ignorés |
+| `26.2 (Fabric)` | **AVEC MODS** (bleue) | c'est celle-ci qu'il faut |
+
+Depuis la version 2.1, le lanceur sélectionne Fabric tout seul quand des mods sont présents, et
+demande confirmation si tu lances quand même la version nue.
+
+**Autre cause :** un mod prévu pour une autre version. Fabric refuse alors de le charger et
+l'écrit dans son journal, mais rien n'apparaît dans le jeu. La page Mods affiche désormais
+« ⚠ prévu pour ~26.2 » sur les mods incompatibles avec la version sélectionnée.
+
 ## Le jeu plante sur « NoSuchFileException »
 
 Message typique dans le rapport de crash :

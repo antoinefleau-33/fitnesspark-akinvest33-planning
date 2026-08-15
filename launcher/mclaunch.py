@@ -37,7 +37,7 @@ import zipfile
 from pathlib import Path
 
 APP_NAME = "poclauncher"
-APP_VERSION = "2.0.1"
+APP_VERSION = "2.1.0"
 
 # La console Windows utilise encore cp1252 par défaut dans certaines configurations : sans ça, le
 # moindre accent fait planter le script sur un UnicodeEncodeError, ce qui donne l'impression que
@@ -272,6 +272,58 @@ def modrinth_install(project_id, mc_version, mods_dir: Path, loader="fabric",
                 # Une dépendance introuvable ne doit pas annuler l'installation du mod principal.
                 pass
     return installed
+
+
+def _version_tuple(text):
+    parts = re.findall(r"\d+", text)
+    return tuple(int(x) for x in parts[:3]) + (0,) * (3 - len(parts[:3]))
+
+
+def version_satisfies(version, constraint):
+    """
+    La version satisfait-elle la contrainte déclarée par un mod ?
+
+    Fabric utilise un sous-ensemble de semver : `*`, exact, `>=`, `>`, `<=`, `<`, `~` (même
+    majeur.mineur) et `^` (même majeur). Les termes séparés par des espaces se cumulent ; une
+    liste vaut « l'un OU l'autre ».
+
+    Utilisé pour repérer un mod prévu pour une autre version que celle lancée. C'est le cas le
+    plus courant de « mes mods ne marchent pas » : Fabric refuse de charger le mod et le signale
+    dans son journal, mais rien n'apparaît dans le jeu.
+    """
+    if not constraint or constraint.strip() in ("*", ""):
+        return True
+    current = _version_tuple(version)
+
+    for term in constraint.replace(",", " ").split():
+        term = term.strip()
+        if not term or term == "*":
+            continue
+        if term.startswith(">="):
+            if not current >= _version_tuple(term[2:]):
+                return False
+        elif term.startswith("<="):
+            if not current <= _version_tuple(term[2:]):
+                return False
+        elif term.startswith(">"):
+            if not current > _version_tuple(term[1:]):
+                return False
+        elif term.startswith("<"):
+            if not current < _version_tuple(term[1:]):
+                return False
+        elif term.startswith("~"):
+            base = _version_tuple(term[1:])
+            # ~26.2 : accepte 26.2.x, refuse 26.1.x et 26.3.x
+            if current[:2] != base[:2] or current < base:
+                return False
+        elif term.startswith("^"):
+            base = _version_tuple(term[1:])
+            if current[0] != base[0] or current < base:
+                return False
+        else:
+            if _version_tuple(term) != current:
+                return False
+    return True
 
 
 MODRINTH_CATEGORIES = [

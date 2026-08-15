@@ -478,7 +478,8 @@ def read_mod_info(jar_path):
     lisibilité de la liste. Tout est enveloppé : un jar corrompu ou un mod Forge posé là par erreur
     ne doit pas faire disparaître toute la liste.
     """
-    info = {"name": jar_path.name, "version": "", "description": "", "icon": None}
+    info = {"name": jar_path.name, "version": "", "description": "", "icon": None,
+            "mc": ""}
     try:
         with zipfile.ZipFile(jar_path) as z:
             names = z.namelist()
@@ -488,6 +489,15 @@ def read_mod_info(jar_path):
             info["name"] = meta.get("name") or meta.get("id") or jar_path.name
             info["version"] = str(meta.get("version", ""))
             info["description"] = (meta.get("description") or "").strip().replace("\n", " ")
+
+            # Version de Minecraft ciblée, declarée par le mod lui-même. C'est la seule source
+            # fiable : le nom de fichier ment souvent, et un mod chargé sur la mauvaise version
+            # est simplement ignoré par Fabric, sans message visible dans le jeu.
+            depends = meta.get("depends") or {}
+            mc = depends.get("minecraft")
+            if isinstance(mc, list):
+                mc = " ".join(str(x) for x in mc)
+            info["mc"] = str(mc) if mc else ""
 
             icon = meta.get("icon")
             if isinstance(icon, dict):

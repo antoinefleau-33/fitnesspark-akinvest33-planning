@@ -399,25 +399,61 @@ class PlayPage(Page):
             self.repair_btn.set_enabled(False)
             return
 
+        mod_count = self.count_mods()
         last = self.app.cfg.data.get("last_version")
-        self.selected = last if last in versions else versions[-1]
+
+        # Choix par défaut : le profil Fabric plutôt que la version nue. Les deux portent le même
+        # numéro et se ressemblent dans la liste ; lancer la vanilla par erreur donne un jeu où
+        # aucun mod ne se charge, sans le moindre message d'explication.
+        fabric_versions = [v for v in versions if v.startswith("fabric-loader")]
+        corrected = False
+        if last in versions:
+            self.selected = last
+            # Le choix mémorisé est la version nue alors que des mods sont installés : on bascule
+            # sur le profil Fabric du même numéro. C'est le piège dans lequel on tombe une fois,
+            # puis à chaque lancement suivant, sans jamais comprendre pourquoi les mods se taisent.
+            if mod_count and not last.startswith("fabric-loader"):
+                twin = [v for v in fabric_versions if v.endswith("-" + last)]
+                if twin:
+                    self.selected = twin[-1]
+                    corrected = True
+        elif fabric_versions:
+            self.selected = fabric_versions[-1]
+        else:
+            self.selected = versions[-1]
 
         for version in versions:
             self.version_rows[version] = VersionRow(
                 self.list_area.body, version, self.selected == version,
-                lambda v=version: self.select(v))
+                lambda v=version: self.select(v), mod_count)
             self.version_rows[version].pack(fill="x", pady=4)
 
         self.play_btn.set_enabled(True)
         self.repair_btn.set_enabled(True)
-        self.status_label.configure(text=f"Prêt : {core.playable_name(self.selected)}",
-                                    fg=T.TEXT_DIM)
+        if corrected:
+            self.status_label.configure(
+                text=f"Fabric sélectionné automatiquement — tu as {mod_count} mods.", fg=T.ACCENT)
+        else:
+            # Même message d'avertissement que sur un clic manuel.
+            self.select(self.selected)
+
+    def count_mods(self):
+        mods_dir = self.app.cfg.game_dir / "mods"
+        return len(list(mods_dir.glob("*.jar"))) if mods_dir.is_dir() else 0
 
     def select(self, version):
         self.selected = version
         for name, row in self.version_rows.items():
             row.set_selected(name == version)
-        self.status_label.configure(text=f"Prêt : {core.playable_name(version)}")
+
+        mods = self.count_mods()
+        if not version.startswith("fabric-loader") and mods:
+            self.status_label.configure(
+                text=f"Attention : {mods} mods installés, mais cette version ne les chargera pas.",
+                fg=T.AMBER)
+        else:
+            self.status_label.configure(text=f"Prêt : {core.playable_name(version)}",
+                                        fg=T.TEXT_DIM)
 
     def _on_game_exit(self, code, console):
         """
@@ -504,6 +540,28 @@ class PlayPage(Page):
             self.app.show_page("settings")
             return
 
+        # Garde-fou : lancer la version nue alors que des mods sont installés produit un jeu
+        # strictement vanilla, sans aucun message. C'est exactement ce qui donne l'impression
+        # que « les mods ne marchent pas ».
+        mods = self.count_mods()
+        if mods and not self.selected.startswith("fabric-loader"):
+            fabric = [v for v in core.installed_versions(self.app.cfg.game_dir)
+                      if v.startswith("fabric-loader")]
+            if fabric:
+                if messagebox.askyesno(
+                        "Cette version ignore les mods",
+                        f"Tu as {mods} mods installés, mais « {core.playable_name(self.selected)} »"
+                        " est la version SANS Fabric : aucun mod ne se chargera.\n\n"
+                        f"Lancer « {core.playable_name(fabric[-1])} » à la place ?"):
+                    self.select(fabric[-1])
+            else:
+                messagebox.showwarning(
+                    "Fabric n'est pas installé",
+                    f"Tu as {mods} mods, mais aucune version avec Fabric n'est installée.\n\n"
+                    "Clique sur « Installer », choisis ta version et laisse « Installer Fabric » "
+                    "activé.")
+                return
+
         self.app.cfg.data["last_version"] = self.selected
         self.app.cfg.save()
         self.play_btn.set_enabled(False)
@@ -567,7 +625,7 @@ class PlayPage(Page):
 class VersionRow(tk.Frame):
     """Ligne sélectionnable d'une version installée."""
 
-    def __init__(self, parent, version_id, selected, command):
+    def __init__(self, parent, version_id, selected, command, mod_count=0):
         super().__init__(parent, bg=T.BG_CARD, cursor="hand2")
         self.command = command
         self.selected = selected
@@ -588,11 +646,31 @@ class VersionRow(tk.Frame):
 
         texts = tk.Frame(inner, bg=T.BG_CARD)
         texts.pack(side="left", padx=(14, 0), fill="x", expand=True)
-        self.title = tk.Label(texts, text=core.playable_name(version_id), bg=T.BG_CARD,
+        title_row = tk.Frame(texts, bg=T.BG_CARD)
+        title_row.pack(fill="x")
+        self.title = tk.Label(title_row, text=core.playable_name(version_id), bg=T.BG_CARD,
                               fg=T.TEXT, font=font(11, "bold"), anchor="w")
-        self.title.pack(fill="x")
-        tk.Label(texts, text="Fabric — compatible avec les mods" if is_fabric else "Version vanilla",
-                 bg=T.BG_CARD, fg=T.TEXT_DIM, font=font(8), anchor="w").pack(fill="x")
+        self.title.pack(side="left")
+
+        # Pastille de rappel : c'est le seul élément qui distingue vraiment les deux lignes.
+        badge = tk.Canvas(title_row, width=76, height=18, bg=T.BG_CARD, highlightthickness=0)
+        badge.pack(side="left", padx=(10, 0))
+        if is_fabric:
+            round_rect(badge, 0, 1, 76, 17, 4, fill=T.ACCENT_DIM, outline="")
+            badge.create_text(38, 9, text="AVEC MODS", fill="#DCE7FF", font=font(7, "bold"))
+        else:
+            round_rect(badge, 0, 1, 76, 17, 4, fill="#3A2A2A", outline="")
+            badge.create_text(38, 9, text="SANS MODS", fill="#E8A0A0", font=font(7, "bold"))
+
+        if is_fabric:
+            subtitle = (f"Fabric — {mod_count} mods se chargeront" if mod_count
+                        else "Fabric — prêt pour les mods")
+        else:
+            subtitle = ("Version d'origine — tes mods seront ignorés" if mod_count
+                        else "Version d'origine, sans Fabric")
+        tk.Label(texts, text=subtitle, bg=T.BG_CARD,
+                 fg=T.AMBER if (mod_count and not is_fabric) else T.TEXT_DIM,
+                 font=font(8), anchor="w").pack(fill="x")
 
         self.check = tk.Label(inner, text="●" if selected else "", bg=T.BG_CARD,
                               fg=T.ACCENT, font=font(13))
@@ -824,6 +902,17 @@ class ModsPage(Page):
         PerfPackDialog(self.app, self, mc)
 
 
+def mismatched(constraint, mc_version):
+    """Le mod cible-t-il une autre version que celle sélectionnée ?"""
+    if not constraint or not mc_version:
+        return False
+    try:
+        return not core.version_satisfies(mc_version, constraint)
+    except Exception:
+        # Contrainte d'une syntaxe inattendue : on préfère se taire plutôt qu'alerter à tort.
+        return False
+
+
 class ModRow(tk.Frame):
     """Une ligne de mod : icône, nom, version, interrupteur, suppression."""
 
@@ -865,6 +954,12 @@ class ModRow(tk.Frame):
         if info["version"]:
             tk.Label(title_row, text=info["version"], bg=T.BG_CARD, fg=T.TEXT_FAINT,
                      font=font(8)).pack(side="left", padx=(8, 0))
+
+        mc_target = info.get("mc", "")
+        current = self.app.cfg.data.get("last_version", "").split("-")[-1]
+        if mc_target and current and mismatched(mc_target, current):
+            tk.Label(title_row, text=f"⚠ prévu pour {mc_target}", bg=T.BG_CARD,
+                     fg=T.AMBER, font=font(8, "bold")).pack(side="left", padx=(10, 0))
 
         description = info["description"] or jar_path.name
         if len(description) > 96:
