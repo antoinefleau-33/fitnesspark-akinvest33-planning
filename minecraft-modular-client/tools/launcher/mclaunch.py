@@ -36,7 +36,7 @@ import zipfile
 from pathlib import Path
 
 APP_NAME = "poclauncher"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 
 # La console Windows utilise encore cp1252 par défaut dans certaines configurations : sans ça, le
 # moindre accent fait planter le script sur un UnicodeEncodeError, ce qui donne l'impression que
@@ -127,7 +127,11 @@ def download(url, target: Path, expected_sha1=None, expected_size=None):
 _pool = threading.local()
 
 
-def _pooled_get(url, target: Path):
+class InstallError(Exception):
+    """Installation incomplète. Levée plutôt que signalée, pour ne jamais annoncer un succès faux."""
+
+
+def _pooled_get(url, target: Path, expected_size=None):
     """
     Télécharge un fichier en réutilisant la connexion HTTPS du thread courant.
 
@@ -145,20 +149,31 @@ def _pooled_get(url, target: Path):
         conns = _pool.conns = {}
 
     last_error = None
-    for attempt in range(3):
+    for attempt in range(4):
         conn = conns.get(host)
         if conn is None:
-            conn = conns[host] = http.client.HTTPSConnection(host, timeout=30)
+            # Le délai monte avec les tentatives : les gros fichiers (le panorama du menu fait
+            # 1,2 Mo) dépassent facilement 30 s sur une connexion chargée par 16 transferts.
+            conn = conns[host] = http.client.HTTPSConnection(host, timeout=30 + 30 * attempt)
         try:
             conn.request("GET", path, headers={"User-Agent": UA, "Connection": "keep-alive"})
             response = conn.getresponse()
             data = response.read()          # obligatoire même en erreur, sinon la connexion reste sale
             if response.status != 200:
-                raise OSError(f"HTTP {response.status} sur {url}")
+                raise OSError(f"HTTP {response.status}")
+            if expected_size is not None and len(data) != expected_size:
+                raise OSError(f"taille reçue {len(data)} au lieu de {expected_size}")
+
             target.parent.mkdir(parents=True, exist_ok=True)
-            tmp = target.with_name(target.name + ".part")
-            tmp.write_bytes(data)
-            tmp.replace(target)
+            # Nom temporaire unique par thread : deux transferts ne peuvent jamais se disputer
+            # le même fichier intermédiaire.
+            tmp = target.with_name(f"{target.name}.{threading.get_ident():x}.part")
+            try:
+                tmp.write_bytes(data)
+                tmp.replace(target)
+            finally:
+                if tmp.exists():
+                    tmp.unlink(missing_ok=True)
             return len(data)
         except Exception as e:
             last_error = e
@@ -169,6 +184,10 @@ def _pooled_get(url, target: Path):
             except Exception:
                 pass
             conns.pop(host, None)
+            if attempt < 3:
+                # Attente croissante. Sans elle, trois tentatives immédiates échouent toutes
+                # de la même façon face à un serveur qui limite le débit ou à une coupure brève.
+                time.sleep(0.4 * (2 ** attempt))
     raise last_error
 
 
@@ -186,7 +205,7 @@ def download_many(items, workers=16, on_progress=None):
     for url, target, size in items:
         if target.exists() and (size is None or target.stat().st_size == size):
             continue
-        pending.append((url, target))
+        pending.append((url, target, size))
 
     done = 0
     failures = []
@@ -200,12 +219,12 @@ def download_many(items, workers=16, on_progress=None):
 
     def fetch(job):
         nonlocal done
-        url, target = job
+        url, target, size = job
         try:
-            _pooled_get(url, target)
+            _pooled_get(url, target, size)
             outcome = None
         except Exception as e:
-            outcome = f"{target.name} : {e}"
+            outcome = (url, target, size, str(e))
         with lock:
             done += 1
             if outcome:
@@ -219,6 +238,20 @@ def download_many(items, workers=16, on_progress=None):
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
         list(pool.map(fetch, pending))
+
+    # Seconde passe, en série, sur ce qui a échoué. Un échec en parallèle vient le plus souvent
+    # d'une saturation momentanée : réessayer seul, sans concurrence, récupère la quasi-totalité
+    # des cas. C'est l'absence de cette passe qui laissait des fichiers manquants.
+    if failures:
+        retry = list(failures)
+        failures.clear()
+        if on_progress:
+            on_progress(0.95, f"Reprise de {len(retry)} fichier(s)")
+        for url, target, size, _ in retry:
+            try:
+                _pooled_get(url, target, size)
+            except Exception as e:
+                failures.append((url, target, size, str(e)))
 
     return done - len(failures), failures
 
@@ -679,8 +712,11 @@ def install_version(game_dir: Path, version_json, progress=True, on_progress=Non
         jobs, on_progress=lambda f, label: report(0.05 + 0.25 * f, f"Librairies {label}"))
     if progress:
         print(f"  librairies : {fetched} téléchargées, {len(jobs) - fetched} déjà présentes")
-    for failure in failures:
-        print(f"  ! librairie indisponible : {failure}")
+    missing_libs = [target for _, target, _ in jobs if not target.exists()]
+    if missing_libs:
+        raise InstallError(
+            f"{len(missing_libs)} librairie(s) manquante(s), dont {missing_libs[0].name}. "
+            "Relance l'installation.")
 
     for lib in libs:
         # Ancien format (≤ 1.18) : natifs dans un jar séparé à dépaqueter.
@@ -709,6 +745,69 @@ def install_version(game_dir: Path, version_json, progress=True, on_progress=Non
     install_assets(game_dir, version_json, progress, on_progress)
 
 
+def verify_install(game_dir: Path, version_json):
+    """
+    Liste ce qui manque dans une installation existante, sans rien télécharger.
+
+    @return (ressources manquantes, librairies manquantes, client jar manquant)
+    """
+    missing_assets, missing_libs = [], []
+
+    asset_index = version_json.get("assetIndex")
+    if asset_index:
+        index_path = game_dir / "assets" / "indexes" / f"{asset_index['id']}.json"
+        if index_path.exists():
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+            for obj in index.get("objects", {}).values():
+                h = obj["hash"]
+                target = game_dir / "assets" / "objects" / h[:2] / h
+                if not target.exists() or target.stat().st_size != obj.get("size", -1):
+                    missing_assets.append(obj)
+
+    for lib in version_json.get("libraries", []):
+        if not rules_allow(lib.get("rules")):
+            continue
+        if not library_path(game_dir, lib).exists():
+            missing_libs.append(lib)
+
+    version_id = version_json["id"]
+    jar = game_dir / "versions" / version_id / f"{version_id}.jar"
+    parent = version_json.get("inheritsFrom")
+    if not jar.exists() and parent:
+        jar = game_dir / "versions" / parent / f"{parent}.jar"
+
+    return missing_assets, missing_libs, not jar.exists()
+
+
+def repair_install(game_dir: Path, version_json, on_progress=None):
+    """
+    Retélécharge uniquement ce qui manque. C'est ce qu'il faut lancer après un crash du type
+    « NoSuchFileException » sur un fichier d'assets : quelques secondes au lieu de 580 Mo.
+    """
+    missing_assets, missing_libs, missing_jar = verify_install(game_dir, version_json)
+    total = len(missing_assets) + len(missing_libs) + (1 if missing_jar else 0)
+    if total == 0:
+        if on_progress:
+            on_progress(1.0, "Installation complète, rien à réparer")
+        return 0
+
+    if on_progress:
+        on_progress(0.05, f"{total} fichier(s) à récupérer")
+
+    if missing_jar or missing_libs:
+        install_version(game_dir, version_json, progress=False, on_progress=on_progress)
+        return total
+
+    jobs = [(f"{RESOURCES_URL}/{o['hash'][:2]}/{o['hash']}",
+             game_dir / "assets" / "objects" / o["hash"][:2] / o["hash"],
+             o.get("size"))
+            for o in missing_assets]
+    _, failures = download_many(jobs, on_progress=on_progress)
+    if failures:
+        raise InstallError(f"{len(failures)} fichier(s) toujours manquant(s) après réparation.")
+    return total
+
+
 def install_assets(game_dir: Path, version_json, progress=True, on_progress=None):
     def report(fraction, label):
         if on_progress:
@@ -734,10 +833,17 @@ def install_assets(game_dir: Path, version_json, progress=True, on_progress=None
 
     if progress:
         print(f"  assets : {downloaded} téléchargés, {len(jobs) - downloaded} déjà présents")
-    for failure in failures[:5]:
-        print(f"  ! ressource manquante : {failure}")
-    if failures:
-        print(f"  ! {len(failures)} ressource(s) en échec — relancer l'installation les reprendra")
+
+    # Contrôle final sur le disque. Ne pas se fier au seul compteur de succès : c'est exactement
+    # ce qui a laissé passer une installation incomplète, annoncée comme terminée, puis plantée
+    # au démarrage du jeu sur un « NoSuchFileException ».
+    missing = [target for _, target, _ in jobs if not target.exists()]
+    if missing:
+        detail = ", ".join(m.name[:12] for m in missing[:3])
+        raise InstallError(
+            f"{len(missing)} ressource(s) n'ont pas pu être téléchargées ({detail}...). "
+            "Relance l'installation ou utilise « Réparer » : seuls les fichiers manquants "
+            "seront repris.")
 
     # Versions ≤ 1.8 : arborescence à plat en plus du stockage par hash.
     if index.get("map_to_resources") or index.get("virtual"):
@@ -942,6 +1048,25 @@ def cmd_install(args, config: Config):
         print(f"  dossier de mods : {game_dir / 'mods'}")
 
     print("\nInstallation terminée.")
+    return 0
+
+
+def cmd_repair(args, config: Config):
+    game_dir = config.game_dir
+    path = game_dir / "versions" / args.version / f"{args.version}.json"
+    if not path.exists():
+        print(f"Version {args.version} non installée.")
+        return 1
+    version_json = merged_version(game_dir, json.loads(path.read_text(encoding="utf-8")))
+    missing_assets, missing_libs, missing_jar = verify_install(game_dir, version_json)
+    print(f"Manquant : {len(missing_assets)} ressource(s), {len(missing_libs)} librairie(s)"
+          + (", le client jar" if missing_jar else ""))
+    if not (missing_assets or missing_libs or missing_jar):
+        print("Rien à faire.")
+        return 0
+    count = repair_install(game_dir, version_json,
+                           on_progress=lambda f, l: print(f"  {l}", end="\r"))
+    print(f"\n{count} fichier(s) récupéré(s).")
     return 0
 
 
@@ -1158,6 +1283,9 @@ def main():
     p.add_argument("--fabric", action="store_true", help="installer aussi Fabric")
     p.add_argument("--loader", help="version précise du chargeur Fabric")
 
+    p = sub.add_parser("repair", help="récupérer les fichiers manquants d'une version")
+    p.add_argument("version")
+
     p = sub.add_parser("play", help="lancer le jeu")
     p.add_argument("version")
     p.add_argument("--dry-run", action="store_true",
@@ -1172,6 +1300,7 @@ def main():
     handlers = {
         "setup": cmd_setup, "login": cmd_login, "logout": cmd_logout,
         "versions": cmd_versions, "install": cmd_install, "play": cmd_play,
+        "repair": cmd_repair,
     }
     return handlers[args.command](args, config)
 

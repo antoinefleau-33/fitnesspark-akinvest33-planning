@@ -177,6 +177,29 @@ Ce chiffre de 20 s a été obtenu sur une connexion rapide. Chez toi, le temps s
 ton débit : 580 Mo sur une fibre à 100 Mb/s font environ une minute, incompressible. Le point
 important est qu'il n'y a plus de temps perdu ailleurs que dans le transfert lui-même.
 
+## Le jeu plante sur « NoSuchFileException »
+
+Message typique dans le rapport de crash :
+
+```
+java.nio.file.NoSuchFileException: ...\assets\objects\9c\9cf7432d...
+```
+
+Un fichier de ressource manque. Cause : son téléchargement a échoué et, jusqu'à la version 1.2,
+le lanceur l'ignorait — il annonçait « Installation terminée » avec des fichiers absents.
+
+**Solution : bouton « Réparer » sur la page Jouer** (ou `python mclaunch.py repair 26.2`). Il
+compare l'installation à l'index officiel et récupère uniquement ce qui manque, en quelques
+secondes plutôt que 580 Mo.
+
+Depuis la 1.2, ça ne devrait plus se produire :
+
+- quatre tentatives par fichier, avec attente croissante entre chaque ;
+- une seconde passe en série sur tout ce qui a échoué en parallèle ;
+- la taille reçue est comparée à la taille attendue avant d'écrire ;
+- **contrôle final sur le disque** : s'il manque quoi que ce soit, l'installation échoue
+  visiblement au lieu de se déclarer réussie.
+
 ## État de vérification
 
 Testé sur Minecraft 26.2 / Fabric 0.19.3 :
@@ -187,6 +210,8 @@ Testé sur Minecraft 26.2 / Fabric 0.19.3 :
 - relance sans re-télécharger — OK
 - installation complète de 26.2 depuis zéro : 582 Mo en 20 s ; seconde passe en 0,1 s — OK
 - profil Fabric installé et fusionné, 76 jars au classpath — OK
+- réseau simulé défaillant : l'installation lève bien une erreur au lieu de s'annoncer terminée — OK
+- réparation ciblée après suppression de fichiers : détectés, récupérés, vérification à zéro manquant — OK
 - construction de la ligne de commande, aucune variable non substituée, jeton masqué à l'affichage — OK
 - interface : les quatre pages et les deux fenêtres modales ont été rendues sous affichage virtuel
   et inspectées visuellement, avec des données de test (versions installées, cinq mods avec

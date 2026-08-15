@@ -336,9 +336,13 @@ class PlayPage(Page):
         self.play_btn.pack(side="right")
 
         self.install_btn = Button(inner, "Installer", command=self.install_dialog,
-                                  width=150, height=52, style="ghost", radius=10,
+                                  width=130, height=52, style="ghost", radius=10,
                                   icon="+", bg=T.BG_PANEL)
         self.install_btn.pack(side="right", padx=(0, 10))
+
+        self.repair_btn = Button(inner, "Réparer", command=self.repair,
+                                 width=110, height=52, style="ghost", radius=10, bg=T.BG_PANEL)
+        self.repair_btn.pack(side="right", padx=(0, 10))
 
     def on_show(self):
         self.refresh()
@@ -356,6 +360,7 @@ class PlayPage(Page):
             tk.Label(empty, text="Clique sur « Installer une version » pour commencer.",
                      bg=T.BG_DEEP, fg=T.TEXT_DIM, font=font(9)).pack(pady=(6, 0))
             self.play_btn.set_enabled(False)
+            self.repair_btn.set_enabled(False)
             return
 
         last = self.app.cfg.data.get("last_version")
@@ -368,7 +373,9 @@ class PlayPage(Page):
             self.version_rows[version].pack(fill="x", pady=4)
 
         self.play_btn.set_enabled(True)
-        self.status_label.configure(text=f"Prêt : {core.playable_name(self.selected)}")
+        self.repair_btn.set_enabled(True)
+        self.status_label.configure(text=f"Prêt : {core.playable_name(self.selected)}",
+                                    fg=T.TEXT_DIM)
 
     def select(self, version):
         self.selected = version
@@ -378,6 +385,49 @@ class PlayPage(Page):
 
     def install_dialog(self):
         InstallDialog(self.app, self)
+
+    def repair(self):
+        """
+        Vérifie l'installation et récupère uniquement ce qui manque.
+
+        À utiliser après un crash du jeu sur « NoSuchFileException » : un fichier de ressource
+        a échoué au téléchargement. Quelques secondes, au lieu de réinstaller 580 Mo.
+        """
+        if not self.selected:
+            return
+        version = self.selected
+        self.repair_btn.set_enabled(False)
+        self.play_btn.set_enabled(False)
+        self.status_label.configure(text="Vérification des fichiers...", fg=T.TEXT_DIM)
+
+        def report(fraction, label):
+            self.app.post(lambda: (self.progress.set(fraction),
+                                   self.status_label.configure(text=label)))
+
+        def work():
+            import json as _json
+            game_dir = self.app.cfg.game_dir
+            path = game_dir / "versions" / version / f"{version}.json"
+            version_json = core.merged_version(
+                game_dir, _json.loads(path.read_text(encoding="utf-8")))
+            return core.repair_install(game_dir, version_json, on_progress=report)
+
+        def done(count):
+            self.progress.set(1.0)
+            self.repair_btn.set_enabled(True)
+            self.play_btn.set_enabled(True)
+            self.status_label.configure(
+                text="Rien à réparer, l'installation est complète." if count == 0
+                else f"{count} fichier(s) récupéré(s). Tu peux jouer.", fg=T.GREEN)
+
+        def failed(message):
+            self.progress.set(0)
+            self.repair_btn.set_enabled(True)
+            self.play_btn.set_enabled(True)
+            self.status_label.configure(text="Réparation incomplète", fg=T.RED)
+            self.app.toast(message, error=True)
+
+        self.app.run_async(work, done, failed)
 
     def play(self):
         if not self.selected:
