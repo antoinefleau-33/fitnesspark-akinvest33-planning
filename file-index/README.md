@@ -49,7 +49,34 @@ Dans `config.json` :
 
 `size` et `modified` sont facultatifs (impossible de les deviner à distance).
 
-## Déploiement Vercel
+## En ligne
+
+**https://mes-fichiers-eta.vercel.app** — projet Vercel `mes-fichiers` (équipe `zfrcfs-projects`).
+
+> L'autre adresse, `mes-fichiers-zfrcfs-projects.vercel.app`, est protégée par le SSO Vercel
+> (elle renvoie vers une page de connexion) : c'est l'URL interne de l'équipe, pas celle à partager.
+
+### Mettre le site à jour
+
+Le projet Vercel **n'est pas relié au dépôt GitHub** : le compte Vercel est connecté au GitHub
+`zfrcf`, qui n'a pas les droits d'écriture sur `antoinefleau-33/fitnesspark-akinvest33-planning`.
+Un `git push` ne redéploie donc rien pour l'instant. Trois façons de publier :
+
+1. **Depuis ta machine** (le plus simple) :
+
+   ```bash
+   cd file-index
+   npx vercel --prod
+   ```
+
+2. **Rétablir le lien GitHub** pour retrouver le déploiement automatique à chaque push :
+   donner à `zfrcf` un accès en écriture au dépôt, ou connecter le compte GitHub
+   `antoinefleau-33` à Vercel, puis relier le projet (Settings > Git) avec
+   **Root Directory** = `file-index`.
+
+3. Me redemander un déploiement.
+
+## Déploiement Vercel (nouveau projet)
 
 Nouveau projet Vercel sur ce repo, avec :
 
