@@ -6,8 +6,11 @@
 <title>Audit de ressources web</title>
 <style>
   body { font-family: monospace; margin: 20px; max-width: 900px; }
-  input { width: 60%; padding: 6px; }
+  input[type=text] { width: 55%; padding: 6px; }
+  input[type=number] { width: 70px; padding: 4px; }
   button { padding: 6px 12px; }
+  label { font-size: 13px; }
+  .opts { margin: 8px 0; font-size: 13px; }
   .note { background: #fff8dc; border: 1px solid #ddcc88; padding: 8px; margin: 10px 0; font-size: 13px; }
   .cols { display: flex; gap: 20px; margin-top: 15px; }
   .col { flex: 1; }
@@ -29,10 +32,17 @@
     <button id="run">Analyser</button>
   </div>
 
+  <div class="opts">
+    <label><input type="checkbox" id="crawl" checked /> Explorer les sous-pages du même domaine</label>
+    &nbsp;|&nbsp;
+    <label>Pages max : <input type="number" id="maxpages" value="40" min="1" max="300" /></label>
+    <label>Profondeur : <input type="number" id="maxdepth" value="2" min="1" max="5" /></label>
+  </div>
+
   <div class="note">
-    La récupération passe par un proxy serveur (/api/fetch) qui contourne CORS.
-    L'analyse scanne le DOM ET le HTML brut (scripts/JSON inclus) pour capturer
-    un maximum de liens. Au-delà de 100 résultats, l'affichage est paginé.
+    Récupération via un proxy serveur (/api/fetch) qui contourne CORS. Le crawl
+    suit les liens internes (même domaine) jusqu'aux limites définies, puis
+    agrège toutes les ressources trouvées. Au-delà de 100 résultats : pagination.
   </div>
 
   <div id="status"></div>
@@ -69,32 +79,30 @@ const EXTERNAL_HOSTS = [
 ];
 
 const PER_PAGE = 100;              // Nombre de liens affichés par page.
+const CONCURRENCY = 5;             // Requêtes proxy simultanées pendant le crawl.
 const $ = (id) => document.getElementById(id);
 
-// Regex d'extension de fichier direct (réutilisée pour DOM et texte brut).
 const EXT_RE = new RegExp('\\.(' + DIRECT_EXT.join('|') + ')(\\?|#|$)', 'i');
-// Regex pour extraire des URLs absolues du HTML brut (scripts, JSON, etc.).
 const URL_RE = /https?:\/\/[^\s"'<>()\\]+/gi;
+// Extensions "page" à suivre pour le crawl (ou pas d'extension du tout).
+const PAGE_EXT_OK = /\.(html?|php|aspx?|jsp)$/i;
+const NON_PAGE_EXT = /\.[a-z0-9]{1,6}(\?|#|$)/i;
 
-// État de pagination courant pour chaque colonne.
+// État de pagination pour chaque colonne.
 const state = {
   direct: { items: [], page: 0, listId: 'direct', pagerId: 'direct-pager', countId: 'direct-count' },
   external: { items: [], page: 0, listId: 'external', pagerId: 'external-pager', countId: 'external-count' },
 };
 
-// Affiche la page courante d'une colonne + reconstruit sa barre de pagination.
 function renderPage(key) {
   const s = state[key];
-  const listEl = $(s.listId);
-  const pagerEl = $(s.pagerId);
+  const listEl = $(s.listId), pagerEl = $(s.pagerId);
   const total = s.items.length;
   const pages = Math.max(1, Math.ceil(total / PER_PAGE));
   if (s.page >= pages) s.page = pages - 1;
-
   const start = s.page * PER_PAGE;
   const slice = s.items.slice(start, start + PER_PAGE);
 
-  // Liste des liens de la page.
   listEl.innerHTML = '';
   slice.forEach((u) => {
     const li = document.createElement('li');
@@ -106,7 +114,6 @@ function renderPage(key) {
 
   $(s.countId).textContent = total + ' résultat(s)' + (pages > 1 ? ' — page ' + (s.page + 1) + '/' + pages : '');
 
-  // Barre de pagination (seulement si plus d'une page).
   pagerEl.innerHTML = '';
   if (pages <= 1) return;
   for (let p = 0; p < pages; p++) {
@@ -118,72 +125,126 @@ function renderPage(key) {
   }
 }
 
-// Remplit une colonne avec ses données et affiche la première page.
 function setColumn(key, items) {
-  state[key].items = [...new Set(items)];   // dédup.
+  state[key].items = [...items];
   state[key].page = 0;
   renderPage(key);
 }
 
-// Analyse : combine extraction DOM et scan regex du HTML brut.
-function analyze(html, doc, baseUrl) {
-  const directSet = new Set();
-  const externalSet = new Set();
+// Récupère le HTML d'une URL via le proxy (repli fetch direct).
+async function fetchHtml(url) {
+  try {
+    const r = await fetch('/api/fetch?url=' + encodeURIComponent(url));
+    if (!r.ok) throw new Error('proxy ' + r.status);
+    return await r.text();
+  } catch (e) {
+    const r = await fetch(url);
+    return await r.text();
+  }
+}
 
-  const resolve = (val) => { try { return new URL(val, baseUrl).href; } catch { return null; } };
-  const baseHost = (() => { try { return new URL(baseUrl).hostname; } catch { return ''; } })();
+// Analyse une page : remplit les sets globaux + renvoie les liens internes à suivre.
+function analyzePage(html, pageUrl, baseHost, directSet, externalSet) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const internalLinks = [];
 
-  // Classe une URL absolue dans la/les bonne(s) catégorie(s).
+  const resolve = (v) => { try { return new URL(v, pageUrl).href; } catch { return null; } };
+
   const classify = (abs) => {
     if (!abs) return;
     let host;
     try { host = new URL(abs).hostname; } catch { return; }
     if (EXT_RE.test(abs)) directSet.add(abs);
     const isKnown = EXTERNAL_HOSTS.some((h) => host === h || host.endsWith('.' + h));
-    const isForeign = baseHost && host && host !== baseHost;
-    if (isKnown || isForeign) externalSet.add(abs);
+    if (isKnown || (host && host !== baseHost)) externalSet.add(abs);
   };
 
-  // 1) Tous les href/src du DOM (relatifs résolus en absolus).
+  // Ressources : tous les href/src du DOM.
   doc.querySelectorAll('[href],[src]').forEach((el) => {
     classify(resolve(el.getAttribute('href') || el.getAttribute('src')));
   });
+  // Ressources : URLs enfouies dans le HTML brut (scripts/JSON).
+  (html.match(URL_RE) || []).forEach((m) => classify(m.replace(/[.,;:]+$/, '')));
 
-  // 2) Passe regex sur le HTML brut : capture les URLs dans scripts/JSON/data-*.
-  const matches = html.match(URL_RE);
-  if (matches) matches.forEach((m) => classify(m.replace(/[.,;:]+$/, '')));
+  // Liens internes à crawler : <a href> du même domaine, pointant vers une page.
+  doc.querySelectorAll('a[href]').forEach((a) => {
+    const abs = resolve(a.getAttribute('href'));
+    if (!abs) return;
+    let u;
+    try { u = new URL(abs); } catch { return; }
+    if (u.hostname !== baseHost) return;               // même domaine seulement.
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return;
+    const path = u.pathname;
+    // On suit si : pas d'extension, ou extension de type page (html/php…).
+    if (NON_PAGE_EXT.test(path) && !PAGE_EXT_OK.test(path)) return;
+    u.hash = '';                                        // ignore les ancres.
+    internalLinks.push(u.href);
+  });
 
-  return { direct: [...directSet], external: [...externalSet] };
+  return internalLinks;
 }
 
 async function run() {
-  let url = $('url').value.trim();
+  let start = $('url').value.trim();
   const status = $('status');
-  if (!url) { status.innerHTML = '<span class="err">Saisir une URL.</span>'; return; }
-  // Ajoute https:// si l'utilisateur a omis le schéma (ex: "python.org").
-  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  if (!start) { status.innerHTML = '<span class="err">Saisir une URL.</span>'; return; }
+  if (!/^https?:\/\//i.test(start)) start = 'https://' + start;
 
-  status.textContent = 'Récupération…';
+  const doCrawl = $('crawl').checked;
+  const maxPages = Math.max(1, Math.min(300, parseInt($('maxpages').value) || 40));
+  const maxDepth = Math.max(1, Math.min(5, parseInt($('maxdepth').value) || 2));
+
+  let baseHost;
+  try { baseHost = new URL(start).hostname; }
+  catch { status.innerHTML = '<span class="err">URL invalide.</span>'; return; }
+
   setColumn('direct', []);
   setColumn('external', []);
+  const directSet = new Set(), externalSet = new Set();
+
+  // File d'attente BFS des pages à visiter.
+  const visited = new Set([start]);
+  let queue = [{ url: start, depth: 0 }];
+  let done = 0;
+
+  status.textContent = 'Crawl en cours…';
 
   try {
-    // Proxy serveur d'abord (same-origin, sans CORS), repli fetch direct.
-    let html;
-    try {
-      const proxyRes = await fetch('/api/fetch?url=' + encodeURIComponent(url));
-      if (!proxyRes.ok) throw new Error('proxy HTTP ' + proxyRes.status);
-      html = await proxyRes.text();
-    } catch (proxyErr) {
-      const res = await fetch(url);
-      html = await res.text();
+    while (queue.length && done < maxPages) {
+      // On traite un lot en parallèle (jusqu'à CONCURRENCY et sans dépasser maxPages).
+      const batch = queue.splice(0, Math.min(CONCURRENCY, maxPages - done));
+      const results = await Promise.all(batch.map(async (item) => {
+        try { return { item, html: await fetchHtml(item.url) }; }
+        catch { return { item, html: '' }; }
+      }));
+
+      results.forEach(({ item, html }) => {
+        done++;
+        if (!html) return;
+        const links = analyzePage(html, item.url, baseHost, directSet, externalSet);
+        // On empile les nouveaux liens si le crawl est activé et la profondeur le permet.
+        if (doCrawl && item.depth < maxDepth) {
+          for (const link of links) {
+            if (visited.size >= maxPages * 4) break;   // garde-fou mémoire.
+            if (!visited.has(link)) {
+              visited.add(link);
+              queue.push({ url: link, depth: item.depth + 1 });
+            }
+          }
+        }
+      });
+
+      // Mise à jour progressive de l'affichage.
+      setColumn('direct', [...directSet].sort());
+      setColumn('external', [...externalSet].sort());
+      status.textContent = `Crawl… ${done} page(s) analysée(s), ${queue.length} en attente — `
+        + `${directSet.size} directe(s), ${externalSet.size} externe(s).`;
+
+      if (!doCrawl) break;   // sans crawl : une seule page.
     }
 
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    const { direct, external } = analyze(html, doc, url);
-    setColumn('direct', direct);
-    setColumn('external', external);
-    status.textContent = `Terminé — ${state.direct.items.length} directe(s), ${state.external.items.length} externe(s).`;
+    status.textContent = `Terminé — ${done} page(s) analysée(s), `
+      + `${directSet.size} ressource(s) directe(s), ${externalSet.size} dépendance(s) externe(s).`;
   } catch (e) {
     status.innerHTML = '<span class="err">Échec : ' + e.message + '</span>';
   }
