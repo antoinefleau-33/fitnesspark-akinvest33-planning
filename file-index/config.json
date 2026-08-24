@@ -2,18 +2,9 @@
   "siteName": "Mes fichiers",
   "tagline": "Index des fichiers hébergés",
 
-  "_comment_allowedHosts": "Domaines qui t'appartiennent. Un lien externe dont le domaine n'est PAS dans cette liste est refusé au build.",
-  "allowedHosts": [
-    "akinvest33.vercel.app",
-    "fitnesspark-akinvest33-planning.vercel.app"
-  ],
+  "_comment_allowedHosts": "Liste des domaines qui t'appartiennent. Un lien externe dont le domaine n'est PAS ici est refusé au build. Ex: \"mon-site.vercel.app\".",
+  "allowedHosts": [],
 
-  "_comment_links": "Fichiers hébergés ailleurs (sur TES autres sites). Les fichiers posés dans public/files/ sont détectés automatiquement, pas besoin de les lister ici.",
-  "links": [
-    {
-      "name": "Exemple - Planning Fitness Park",
-      "url": "https://fitnesspark-akinvest33-planning.vercel.app/index.html",
-      "description": "Application de planning (exemple, supprime cette entrée)"
-    }
-  ]
+  "_comment_links": "Fichiers hébergés sur TES autres sites. Les fichiers posés dans public/files/ sont détectés automatiquement : inutile de les lister ici. Ex: { \"name\": \"Setup v2.exe\", \"url\": \"https://mon-site.vercel.app/dl/setup.exe\", \"description\": \"Version stable\" }",
+  "links": []
 }

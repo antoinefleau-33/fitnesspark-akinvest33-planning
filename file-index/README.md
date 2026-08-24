@@ -53,9 +53,14 @@ Dans `config.json` :
 
 Nouveau projet Vercel sur ce repo, avec :
 
-- **Root Directory** : `file-index`
+- **Root Directory** : `file-index` (Settings > General > Build & Deployment)
 - Framework preset : *Other* (le reste est déjà dans `vercel.json` :
   build `node scripts/build-manifest.js`, output `public`)
+
+Tant que le code vit sur une branche autre que la branche par défaut, il faut aussi
+pointer la production dessus : **Settings > Environments > Production > Branch Tracking**,
+saisir le nom de la branche, puis *Save*. Une fois le code fusionné dans `main`,
+remettre `main` ici.
 
 Le dossier `file-index/` est indépendant du `index.html` à la racine du repo
 (l'app de planning) : les deux peuvent être déployés comme deux projets Vercel séparés.

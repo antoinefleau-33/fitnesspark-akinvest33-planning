@@ -1,26 +1,9 @@
 {
   "siteName": "Mes fichiers",
   "tagline": "Index des fichiers hébergés",
-  "generatedAt": "2026-08-24T01:45:52.989Z",
-  "totalCount": 1,
+  "generatedAt": "2026-08-24T02:11:12.509Z",
+  "totalCount": 0,
   "totalSize": 0,
-  "allowedHosts": [
-    "akinvest33.vercel.app",
-    "fitnesspark-akinvest33-planning.vercel.app"
-  ],
-  "items": [
-    {
-      "id": "external:https://fitnesspark-akinvest33-planning.vercel.app/index.html",
-      "name": "Exemple - Planning Fitness Park",
-      "folder": "",
-      "ext": "html",
-      "size": null,
-      "sizeLabel": "",
-      "modified": null,
-      "url": "https://fitnesspark-akinvest33-planning.vercel.app/index.html",
-      "source": "external",
-      "host": "fitnesspark-akinvest33-planning.vercel.app",
-      "description": "Application de planning (exemple, supprime cette entrée)"
-    }
-  ]
+  "allowedHosts": [],
+  "items": []
 }
