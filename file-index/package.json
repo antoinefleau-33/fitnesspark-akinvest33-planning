@@ -1,0 +1,15 @@
+{
+  "name": "file-index",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Index HTML des fichiers hebergés (locaux + liens de mes propres sites)",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node scripts/build-manifest.js",
+    "scan": "node scripts/build-manifest.js",
+    "start": "node scripts/build-manifest.js && node server.js",
+    "dev": "node scripts/build-manifest.js && node server.js"
+  }
+}
