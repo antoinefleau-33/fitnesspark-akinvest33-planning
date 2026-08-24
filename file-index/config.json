@@ -3,7 +3,9 @@
   "tagline": "Index des fichiers hébergés",
 
   "_comment_sites": "Le plus simple : mets juste l'adresse de tes sites, l'index va les explorer et lister tout seul les fichiers qu'il y trouve. Forme détaillée pour régler : { \"url\": \"https://mon-site.fr/\", \"depth\": 2, \"maxPages\": 25, \"extensions\": [\"exe\", \"zip\"] }. extensions: \"all\" liste absolument tout, y compris le css et le js du site.",
-  "sites": [],
+  "sites": [
+    "https://tipasigner.onrender.com/"
+  ],
 
   "_comment_links": "Fichiers précis, quand tu connais déjà leur URL exacte. Une simple chaîne suffit : \"https://cdn.mon-site.fr/setup.exe\". Forme complète : { \"name\": \"Setup v2\", \"url\": \"...\", \"description\": \"Version stable\" }.",
   "links": [],
