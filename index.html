@@ -26,9 +26,9 @@
   </div>
 
   <div class="note">
-    En raison des limitations CORS, la récupération directe échouera pour la
-    plupart des domaines tiers. Cet outil fonctionne mieux via une extension de
-    navigateur désactivant CORS, ou derrière un serveur local avec proxy.
+    La récupération passe par un proxy serveur (/api/fetch) qui contourne les
+    limitations CORS. Si le proxy est indisponible, un repli en fetch direct
+    est tenté (susceptible d'échouer selon la politique CORS du site cible).
   </div>
 
   <div id="status"></div>
@@ -114,8 +114,17 @@ async function run() {
   render($('external'), []);
 
   try {
-    const res = await fetch(url);
-    const html = await res.text();
+    // On tente d'abord le proxy serveur (same-origin, sans CORS).
+    let html;
+    try {
+      const proxyRes = await fetch('/api/fetch?url=' + encodeURIComponent(url));
+      if (!proxyRes.ok) throw new Error('proxy HTTP ' + proxyRes.status);
+      html = await proxyRes.text();
+    } catch (proxyErr) {
+      // Repli : fetch direct (peut échouer à cause de CORS).
+      const res = await fetch(url);
+      html = await res.text();
+    }
     // Parse le HTML brut en objet DOM sans l'exécuter.
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const { direct, external } = analyze(doc, url);
