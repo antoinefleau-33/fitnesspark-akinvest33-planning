@@ -157,9 +157,11 @@ function analyze(html, doc, baseUrl) {
 }
 
 async function run() {
-  const url = $('url').value.trim();
+  let url = $('url').value.trim();
   const status = $('status');
   if (!url) { status.innerHTML = '<span class="err">Saisir une URL.</span>'; return; }
+  // Ajoute https:// si l'utilisateur a omis le schéma (ex: "python.org").
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
 
   status.textContent = 'Récupération…';
   setColumn('direct', []);
