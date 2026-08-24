@@ -29,6 +29,39 @@ git add -A && git commit -m "Ajout MonApp-Setup.exe" && git push
 Vercel relance `npm run build` (= le scan) à chaque push : la liste est toujours à jour,
 tu n'as jamais à éditer le HTML.
 
+### Lister un site entier avec sa seule adresse
+
+Tu donnes l'adresse, l'index se débrouille : il ouvre la page, suit les liens internes
+et liste les fichiers qu'il trouve, avec leur taille et leur date.
+
+```json
+{
+  "sites": [
+    "https://mon-site.fr/",
+    { "url": "https://autre-site.fr/downloads/", "depth": 3, "extensions": ["exe", "zip"] }
+  ]
+}
+```
+
+| Réglage | Défaut | Rôle |
+| --- | --- | --- |
+| `depth` | `2` | Nombre de niveaux de liens suivis depuis la page de départ |
+| `maxPages` | `25` | Plafond de pages lues, pour ne pas explorer un site sans fin |
+| `maxFiles` | `200` | Plafond de fichiers listés |
+| `extensions` | binaires et documents | Liste à lister, ou `"all"` pour absolument tout |
+| `path` | le dossier de l'URL donnée | Ne garder que ce qui est sous ce chemin |
+
+L'exploration reste **sur le domaine du site** : un lien vers un autre domaine n'est
+suivi que s'il est autorisé dans `allowedHosts`. Les habillages du site (`.css`, `.js`,
+polices, images) sont écartés par défaut — mets `"extensions": "all"` pour les voir.
+
+Les listings de dossier générés par Apache/nginx sont lus comme n'importe quelle page.
+
+**Ce que ça ne peut pas faire** : trouver des fichiers qu'aucune page ne mentionne.
+Un site qui garde ses fichiers en base, derrière une connexion, ou qui les renvoie
+directement en réponse à un formulaire (sans les ranger à une URL) n'a rien d'indexable —
+aucun outil ne peut deviner des adresses qui ne sont écrites nulle part.
+
 ### Ajouter un fichier hébergé ailleurs (CDN, autre hébergeur)
 
 Colle l'URL dans `config.json`, c'est tout — le build va interroger le lien

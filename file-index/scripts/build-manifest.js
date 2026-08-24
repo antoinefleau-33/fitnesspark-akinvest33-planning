@@ -21,8 +21,28 @@ const OUTPUT_PATH = path.join(ROOT, 'public', 'files.json');
 // Fichiers techniques à ne jamais lister
 const IGNORED = new Set(['.gitkeep', '.DS_Store', 'Thumbs.db', 'desktop.ini', '.gitignore']);
 
-const FETCH_TIMEOUT_MS = 10000;
+const FETCH_TIMEOUT_MS = 15000;
+// Les pages sont plus lentes : un hébergeur gratuit (Render, Fly…) met parfois
+// 15 à 40 s à réveiller son instance avant de répondre.
+const PAGE_TIMEOUT_MS = 45000;
 const FETCH_CONCURRENCY = 6;
+
+const DEFAULT_DEPTH = 2;
+const DEFAULT_MAX_PAGES = 25;
+const DEFAULT_MAX_FILES = 200;
+
+// Extensions considérées comme "un fichier à lister" par défaut.
+// Les habillages du site (css, js, polices, icônes) sont volontairement exclus.
+const DEFAULT_FILE_EXTENSIONS = [
+  'exe', 'msi', 'apk', 'ipa', 'tipa', 'dmg', 'pkg', 'deb', 'rpm', 'appimage', 'jar', 'iso', 'bin',
+  'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz',
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'csv', 'txt', 'md',
+  'mp3', 'wav', 'flac', 'mp4', 'mkv', 'avi', 'mov',
+  'p12', 'pfx', 'mobileprovision', 'cer', 'crt', 'pem'
+];
+
+// Extensions qui désignent une page à explorer, pas un fichier à télécharger.
+const PAGE_EXTENSIONS = new Set(['', 'html', 'htm', 'php', 'asp', 'aspx', 'jsp', 'xhtml']);
 
 // Types MIME les plus courants -> extension affichée quand l'URL n'en donne pas.
 // application/octet-stream est volontairement absent : trop générique pour conclure.
@@ -73,6 +93,7 @@ function readConfig() {
   config.tagline = config.tagline || '';
   config.allowedHosts = Array.isArray(config.allowedHosts) ? config.allowedHosts : [];
   config.links = Array.isArray(config.links) ? config.links : [];
+  config.sites = Array.isArray(config.sites) ? config.sites : [];
   config.allowAnyHost = config.allowAnyHost === true;
   config.fetchMetadata = config.fetchMetadata !== false;
   return config;
@@ -266,6 +287,160 @@ async function fetchMeta(url) {
   return { ok: true, size, contentType, modified, filename };
 }
 
+/** Récupère le HTML d'une page. Deux tentatives : un hébergeur endormi met du temps. */
+async function fetchPage(url, warnings) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), PAGE_TIMEOUT_MS);
+      let res;
+      try {
+        res = await fetch(url, {
+          method: 'GET',
+          headers: { 'Accept-Encoding': 'identity', Accept: 'text/html,*/*' },
+          redirect: 'follow',
+          signal: controller.signal
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+
+      if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+
+      const type = (res.headers.get('content-type') || '').toLowerCase();
+      if (!type.includes('html')) return { ok: false, error: `pas du HTML (${type || 'type inconnu'})` };
+
+      return { ok: true, html: await res.text(), finalUrl: res.url || url };
+    } catch (err) {
+      if (attempt === 2) {
+        const reason = err.name === 'AbortError' ? `pas de réponse en ${PAGE_TIMEOUT_MS / 1000}s` : err.message;
+        return { ok: false, error: reason };
+      }
+      warnings.push(`Nouvelle tentative sur ${url} (${err.name === 'AbortError' ? 'trop lent' : err.message})`);
+    }
+  }
+  return { ok: false, error: 'inconnu' };
+}
+
+/** Extrait les URL référencées par une page (liens, ressources, listings de dossier). */
+function extractUrls(html, pageUrl) {
+  const found = new Set();
+  const rx = /(?:href|src|data-href|data-url)\s*=\s*["']([^"']+)["']/gi;
+  let match;
+
+  while ((match = rx.exec(html)) !== null) {
+    const raw = match[1].trim();
+    if (!raw || raw.startsWith('#') || /^(mailto|tel|javascript|data):/i.test(raw)) continue;
+    try {
+      const url = new URL(raw, pageUrl);
+      url.hash = '';
+      found.add(url.href);
+    } catch {
+      /* lien malformé : on l'ignore */
+    }
+  }
+  return [...found];
+}
+
+/** Extension d'une URL, sans le point, en minuscules. */
+function urlExtension(url) {
+  const last = url.pathname.split('/').filter(Boolean).pop() || '';
+  return path.extname(last).toLowerCase().replace('.', '');
+}
+
+/**
+ * Explore un site à partir de sa seule adresse et renvoie les fichiers trouvés.
+ *
+ * Suit les liens internes (même hôte) jusqu'à `depth` niveaux, sans dépasser
+ * `maxPages` pages ni `maxFiles` fichiers. Gère aussi bien les pages classiques
+ * que les listings de dossier générés par Apache/nginx.
+ */
+async function crawlSite(rawSite, warnings) {
+  const site = typeof rawSite === 'string' ? { url: rawSite } : rawSite || {};
+
+  let root;
+  try {
+    root = new URL(String(site.url).trim());
+  } catch {
+    warnings.push(`Site ignoré (URL invalide) : ${site.url}`);
+    return [];
+  }
+
+  const depth = Number.isFinite(site.depth) ? site.depth : DEFAULT_DEPTH;
+  const maxPages = Number.isFinite(site.maxPages) ? site.maxPages : DEFAULT_MAX_PAGES;
+  const maxFiles = Number.isFinite(site.maxFiles) ? site.maxFiles : DEFAULT_MAX_FILES;
+
+  const allExtensions = site.extensions === 'all';
+  const extensions = new Set(
+    allExtensions ? [] : (Array.isArray(site.extensions) ? site.extensions : DEFAULT_FILE_EXTENSIONS)
+      .map((e) => String(e).toLowerCase().replace(/^\./, ''))
+  );
+
+  // Ne garder que ce qui est sous ce chemin (ex. "/downloads/"), si demandé.
+  const prefix = site.path ? String(site.path) : root.pathname.replace(/[^/]*$/, '');
+
+  const queue = [{ url: root.href, level: 0 }];
+  const visited = new Set([root.href]);
+  const files = new Set();
+  let pagesRead = 0;
+
+  while (queue.length && pagesRead < maxPages && files.size < maxFiles) {
+    const { url, level } = queue.shift();
+    const page = await fetchPage(url, warnings);
+    pagesRead++;
+
+    if (!page.ok) {
+      warnings.push(`Page illisible : ${url} (${page.error})`);
+      continue;
+    }
+
+    for (const href of extractUrls(page.html, page.finalUrl)) {
+      let target;
+      try {
+        target = new URL(href);
+      } catch {
+        continue;
+      }
+
+      if (target.hostname !== root.hostname) continue;
+      if (!target.pathname.startsWith(prefix)) continue;
+
+      const ext = urlExtension(target);
+
+      if (PAGE_EXTENSIONS.has(ext)) {
+        // Une page : on l'explore si on n'a pas atteint la profondeur demandée.
+        if (level < depth && !visited.has(target.href) && visited.size < maxPages * 4) {
+          visited.add(target.href);
+          queue.push({ url: target.href, level: level + 1 });
+        }
+        continue;
+      }
+
+      if (!allExtensions && !extensions.has(ext)) continue;
+      if (files.size < maxFiles) files.add(target.href);
+    }
+  }
+
+  if (files.size >= maxFiles) {
+    warnings.push(`${root.hostname} : limite de ${maxFiles} fichiers atteinte, la liste est tronquée.`);
+  }
+  if (pagesRead >= maxPages && queue.length) {
+    warnings.push(`${root.hostname} : limite de ${maxPages} pages atteinte, ${queue.length} page(s) non explorée(s).`);
+  }
+
+  console.log(`[manifest]   ${root.hostname} : ${pagesRead} page(s) lue(s), ${files.size} fichier(s) trouvé(s)`);
+  return [...files].map((url) => ({ url, discoveredOn: root.hostname }));
+}
+
+/** Explore tous les sites déclarés dans config.json > sites. */
+async function crawlSites(config, warnings) {
+  const results = [];
+  for (const site of config.sites) {
+    results.push(...(await crawlSite(site, warnings)));
+  }
+  return results;
+}
+
 /** Exécute des tâches par petits paquets pour ne pas marteler les serveurs. */
 async function inBatches(items, size, worker) {
   const results = [];
@@ -276,10 +451,26 @@ async function inBatches(items, size, worker) {
   return results;
 }
 
-/** Valide et normalise les liens externes de config.json. */
-async function buildExternalLinks(config, warnings) {
+/**
+ * Valide et normalise les liens externes : ceux écrits dans config.json > links
+ * et ceux découverts automatiquement en explorant config.json > sites.
+ */
+async function buildExternalLinks(config, warnings, discovered = []) {
   // Un lien peut être une simple chaîne (l'URL) ou un objet complet.
-  const entries = config.links.map((link) => (typeof link === 'string' ? { url: link } : link || {}));
+  const written = config.links.map((link) => (typeof link === 'string' ? { url: link } : link || {}));
+  const entries = [...written, ...discovered];
+
+  // Les sites que tu as toi-même déclarés sont autorisés d'office.
+  const siteHosts = config.sites
+    .map((site) => {
+      try {
+        return new URL(String(typeof site === 'string' ? site : site && site.url).trim()).hostname;
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+  const allowedHosts = [...config.allowedHosts, ...siteHosts];
 
   const candidates = [];
 
@@ -304,7 +495,7 @@ async function buildExternalLinks(config, warnings) {
       return;
     }
 
-    if (!config.allowAnyHost && !isAllowedHost(parsed.hostname, config.allowedHosts)) {
+    if (!config.allowAnyHost && !isAllowedHost(parsed.hostname, allowedHosts)) {
       warnings.push(
         `Lien REFUSÉ (domaine hors allowedHosts) : ${label} -> ${parsed.hostname}. ` +
         `Ajoute "${parsed.hostname}" (ou un motif comme "*.${parsed.hostname.split('.').slice(-2).join('.')}") ` +
@@ -353,6 +544,7 @@ async function buildExternalLinks(config, warnings) {
       source: 'external',
       host: parsed.hostname,
       description: link.description || '',
+      discoveredOn: link.discoveredOn || '',
       reachable: shouldFetch ? meta.ok : null
     };
   });
@@ -363,7 +555,12 @@ async function main() {
   const config = readConfig();
 
   const localItems = scanDir(FILES_DIR);
-  const externalItems = await buildExternalLinks(config, warnings);
+
+  const shouldCrawl = config.sites.length > 0 && !process.env.SKIP_LINK_FETCH;
+  if (shouldCrawl) console.log(`[manifest] exploration de ${config.sites.length} site(s)…`);
+  const discovered = shouldCrawl ? await crawlSites(config, warnings) : [];
+
+  const externalItems = await buildExternalLinks(config, warnings, discovered);
 
   // Dédoublonnage par URL (un même fichier listé deux fois n'apparaît qu'une fois)
   const seen = new Set();
@@ -389,6 +586,7 @@ async function main() {
   console.log(`[manifest] ${items.length} entrée(s) -> public/files.json`);
   console.log(`[manifest]   ${localItems.length} fichier(s) local(aux) dans public/files/`);
   console.log(`[manifest]   ${externalItems.length} lien(s) externe(s) validé(s)`);
+  console.log(`[manifest]   dont ${externalItems.filter((i) => i.discoveredOn).length} trouvé(s) en explorant tes sites`);
   console.log(`[manifest]   taille totale connue : ${humanSize(manifest.totalSize)}`);
   warnings.forEach((w) => console.warn(`[manifest] ⚠ ${w}`));
 }
