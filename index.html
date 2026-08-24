@@ -15,6 +15,10 @@
   ul { padding-left: 18px; word-break: break-all; }
   #status { color: #444; margin-top: 10px; }
   .err { color: #b00; }
+  .pager { margin-top: 8px; }
+  .pager button { padding: 2px 8px; margin: 2px; }
+  .pager button.active { font-weight: bold; background: #333; color: #fff; }
+  .count { font-size: 12px; color: #666; }
 </style>
 </head>
 <body>
@@ -26,9 +30,9 @@
   </div>
 
   <div class="note">
-    La récupération passe par un proxy serveur (/api/fetch) qui contourne les
-    limitations CORS. Si le proxy est indisponible, un repli en fetch direct
-    est tenté (susceptible d'échouer selon la politique CORS du site cible).
+    La récupération passe par un proxy serveur (/api/fetch) qui contourne CORS.
+    L'analyse scanne le DOM ET le HTML brut (scripts/JSON inclus) pour capturer
+    un maximum de liens. Au-delà de 100 résultats, l'affichage est paginé.
   </div>
 
   <div id="status"></div>
@@ -36,72 +40,120 @@
   <div class="cols">
     <div class="col">
       <h2>Ressources directes</h2>
+      <div class="count" id="direct-count"></div>
       <ul id="direct"></ul>
+      <div class="pager" id="direct-pager"></div>
     </div>
     <div class="col">
       <h2>Dépendances externes</h2>
+      <div class="count" id="external-count"></div>
       <ul id="external"></ul>
+      <div class="pager" id="external-pager"></div>
     </div>
   </div>
 
 <script>
 // Extensions considérées comme ressources directes (binaires / archives / médias).
 const DIRECT_EXT = [
-  'exe','msi','zip','rar','7z','tar','gz',
-  'mp3','wav','mp4','mov','avi','mkv','webm',
-  'pdf','iso','dmg','apk','bin'
+  'exe','msi','zip','rar','7z','tar','gz','bz2',
+  'mp3','wav','flac','ogg','mp4','mov','avi','mkv','webm','m4a',
+  'pdf','iso','dmg','apk','bin','deb','rpm','jar','doc','docx','xls','xlsx'
 ];
 
 // Hôtes/plateformes de CDN et d'hébergement de code brut à repérer.
 const EXTERNAL_HOSTS = [
-  'cdn.discordapp.com','raw.githubusercontent.com','jsdelivr.net',
-  'cdnjs.cloudflare.com','unpkg.com','gist.githubusercontent.com',
-  'pastebin.com','githubusercontent.com','media.discordapp.net'
+  'cdn.discordapp.com','media.discordapp.net','raw.githubusercontent.com',
+  'gist.githubusercontent.com','githubusercontent.com','jsdelivr.net',
+  'cdnjs.cloudflare.com','unpkg.com','pastebin.com','anonfiles.com',
+  'mediafire.com','mega.nz','dropbox.com','drive.google.com'
 ];
 
+const PER_PAGE = 100;              // Nombre de liens affichés par page.
 const $ = (id) => document.getElementById(id);
 
-// Vide une liste puis y insère des liens cliquables (dédupliqués).
-function render(listEl, urls) {
+// Regex d'extension de fichier direct (réutilisée pour DOM et texte brut).
+const EXT_RE = new RegExp('\\.(' + DIRECT_EXT.join('|') + ')(\\?|#|$)', 'i');
+// Regex pour extraire des URLs absolues du HTML brut (scripts, JSON, etc.).
+const URL_RE = /https?:\/\/[^\s"'<>()\\]+/gi;
+
+// État de pagination courant pour chaque colonne.
+const state = {
+  direct: { items: [], page: 0, listId: 'direct', pagerId: 'direct-pager', countId: 'direct-count' },
+  external: { items: [], page: 0, listId: 'external', pagerId: 'external-pager', countId: 'external-count' },
+};
+
+// Affiche la page courante d'une colonne + reconstruit sa barre de pagination.
+function renderPage(key) {
+  const s = state[key];
+  const listEl = $(s.listId);
+  const pagerEl = $(s.pagerId);
+  const total = s.items.length;
+  const pages = Math.max(1, Math.ceil(total / PER_PAGE));
+  if (s.page >= pages) s.page = pages - 1;
+
+  const start = s.page * PER_PAGE;
+  const slice = s.items.slice(start, start + PER_PAGE);
+
+  // Liste des liens de la page.
   listEl.innerHTML = '';
-  [...new Set(urls)].forEach((u) => {
+  slice.forEach((u) => {
     const li = document.createElement('li');
     const a = document.createElement('a');
     a.href = u; a.textContent = u; a.target = '_blank'; a.rel = 'noopener';
     li.appendChild(a);
     listEl.appendChild(li);
   });
+
+  $(s.countId).textContent = total + ' résultat(s)' + (pages > 1 ? ' — page ' + (s.page + 1) + '/' + pages : '');
+
+  // Barre de pagination (seulement si plus d'une page).
+  pagerEl.innerHTML = '';
+  if (pages <= 1) return;
+  for (let p = 0; p < pages; p++) {
+    const b = document.createElement('button');
+    b.textContent = (p + 1);
+    if (p === s.page) b.className = 'active';
+    b.addEventListener('click', () => { s.page = p; renderPage(key); });
+    pagerEl.appendChild(b);
+  }
 }
 
-// Analyse un document DOM à partir d'une URL de base et sépare les deux catégories.
-function analyze(doc, baseUrl) {
-  const direct = [];
-  const external = [];
-  const extRe = new RegExp('\\.(' + DIRECT_EXT.join('|') + ')(\\?|#|$)', 'i');
+// Remplit une colonne avec ses données et affiche la première page.
+function setColumn(key, items) {
+  state[key].items = [...new Set(items)];   // dédup.
+  state[key].page = 0;
+  renderPage(key);
+}
 
-  // Résout une URL relative en absolue par rapport à la page cible.
+// Analyse : combine extraction DOM et scan regex du HTML brut.
+function analyze(html, doc, baseUrl) {
+  const directSet = new Set();
+  const externalSet = new Set();
+
   const resolve = (val) => { try { return new URL(val, baseUrl).href; } catch { return null; } };
   const baseHost = (() => { try { return new URL(baseUrl).hostname; } catch { return ''; } })();
 
-  // a[href] -> ressources directes selon l'extension de fichier.
-  doc.querySelectorAll('a[href]').forEach((a) => {
-    const abs = resolve(a.getAttribute('href'));
-    if (abs && extRe.test(abs)) direct.push(abs);
-  });
-
-  // Tout href/src -> dépendances externes selon l'hôte.
-  doc.querySelectorAll('[href],[src]').forEach((el) => {
-    const raw = el.getAttribute('href') || el.getAttribute('src');
-    const abs = resolve(raw);
+  // Classe une URL absolue dans la/les bonne(s) catégorie(s).
+  const classify = (abs) => {
     if (!abs) return;
     let host;
     try { host = new URL(abs).hostname; } catch { return; }
+    if (EXT_RE.test(abs)) directSet.add(abs);
     const isKnown = EXTERNAL_HOSTS.some((h) => host === h || host.endsWith('.' + h));
     const isForeign = baseHost && host && host !== baseHost;
-    if (isKnown || isForeign) external.push(abs);
+    if (isKnown || isForeign) externalSet.add(abs);
+  };
+
+  // 1) Tous les href/src du DOM (relatifs résolus en absolus).
+  doc.querySelectorAll('[href],[src]').forEach((el) => {
+    classify(resolve(el.getAttribute('href') || el.getAttribute('src')));
   });
 
-  return { direct, external };
+  // 2) Passe regex sur le HTML brut : capture les URLs dans scripts/JSON/data-*.
+  const matches = html.match(URL_RE);
+  if (matches) matches.forEach((m) => classify(m.replace(/[.,;:]+$/, '')));
+
+  return { direct: [...directSet], external: [...externalSet] };
 }
 
 async function run() {
@@ -110,29 +162,28 @@ async function run() {
   if (!url) { status.innerHTML = '<span class="err">Saisir une URL.</span>'; return; }
 
   status.textContent = 'Récupération…';
-  render($('direct'), []);
-  render($('external'), []);
+  setColumn('direct', []);
+  setColumn('external', []);
 
   try {
-    // On tente d'abord le proxy serveur (same-origin, sans CORS).
+    // Proxy serveur d'abord (same-origin, sans CORS), repli fetch direct.
     let html;
     try {
       const proxyRes = await fetch('/api/fetch?url=' + encodeURIComponent(url));
       if (!proxyRes.ok) throw new Error('proxy HTTP ' + proxyRes.status);
       html = await proxyRes.text();
     } catch (proxyErr) {
-      // Repli : fetch direct (peut échouer à cause de CORS).
       const res = await fetch(url);
       html = await res.text();
     }
-    // Parse le HTML brut en objet DOM sans l'exécuter.
+
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    const { direct, external } = analyze(doc, url);
-    render($('direct'), direct);
-    render($('external'), external);
-    status.textContent = `Terminé — ${direct.length} directe(s), ${external.length} externe(s).`;
+    const { direct, external } = analyze(html, doc, url);
+    setColumn('direct', direct);
+    setColumn('external', external);
+    status.textContent = `Terminé — ${state.direct.items.length} directe(s), ${state.external.items.length} externe(s).`;
   } catch (e) {
-    status.innerHTML = '<span class="err">Échec (probablement CORS) : ' + e.message + '</span>';
+    status.innerHTML = '<span class="err">Échec : ' + e.message + '</span>';
   }
 }
 
