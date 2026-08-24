@@ -29,25 +29,57 @@ git add -A && git commit -m "Ajout MonApp-Setup.exe" && git push
 Vercel relance `npm run build` (= le scan) à chaque push : la liste est toujours à jour,
 tu n'as jamais à éditer le HTML.
 
-### Ajouter un fichier hébergé ailleurs
+### Ajouter un fichier hébergé ailleurs (CDN, autre hébergeur)
 
-Dans `config.json` :
+Colle l'URL dans `config.json`, c'est tout — le build va interroger le lien
+(requête `HEAD`, sans télécharger le fichier) pour récupérer **taille, type et date** :
 
 ```json
 {
-  "allowedHosts": ["mon-autre-site.vercel.app"],
+  "allowedHosts": ["cdn.mon-site.fr", "*.mon-autre-site.com"],
   "links": [
+    "https://cdn.mon-site.fr/setup-v2.1.exe",
     {
-      "name": "Installeur v2.1.exe",
-      "url": "https://mon-autre-site.vercel.app/dl/setup-v2.1.exe",
-      "description": "Version stable",
-      "size": 48200000
+      "name": "Installeur v2.1",
+      "url": "https://cdn.mon-site.fr/dl/build-final",
+      "description": "Version stable"
     }
   ]
 }
 ```
 
-`size` et `modified` sont facultatifs (impossible de les deviner à distance).
+Ce que le build sait retrouver tout seul :
+
+| Info | D'où elle vient |
+| --- | --- |
+| Taille | `content-length`, ou `content-range` si l'hébergeur refuse `HEAD` |
+| Date | `last-modified` |
+| Nom | `content-disposition`, sinon la fin de l'URL |
+| Type | l'extension de l'URL, sinon le `content-type` (ex. `application/x-msdownload` → `exe`) |
+
+Tu peux toujours forcer une valeur en l'écrivant dans le lien (`name`, `description`,
+`size`, `modified`) : ce que tu écris a la priorité sur ce que le serveur annonce.
+
+Un lien qui ne répond pas reste listé, mais il est marqué **« lien mort ? »** en rouge
+sur la page et signalé dans les logs de build.
+
+#### Domaines autorisés
+
+`allowedHosts` accepte les jokers :
+
+| Motif | Couvre |
+| --- | --- |
+| `mon-site.fr` | `mon-site.fr` **et** `cdn.mon-site.fr` |
+| `*.mon-site.fr` | les sous-domaines uniquement |
+| `cdn.*` | n'importe quel domaine commençant par `cdn.` |
+
+Pour désactiver le filtre entièrement : `"allowAnyHost": true`.
+Pour un build sans aucune requête réseau : `"fetchMetadata": false`,
+ou `SKIP_LINK_FETCH=1 npm run scan`.
+
+**Limite connue** : un CDN qui stocke ses fichiers texte déjà compressés (jsDelivr par
+exemple) annonce la taille compressée. Sans effet sur les `.exe` / `.zip` / `.msi`,
+qui ne sont jamais recompressés — vérifié, la taille annoncée y est exacte à l'octet.
 
 ## En ligne
 

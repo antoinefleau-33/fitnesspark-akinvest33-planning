@@ -81,6 +81,11 @@
     display:inline-block; font-size:10.5px; padding:1px 6px; border-radius:4px;
     background:var(--accent-soft); color:var(--accent); font-weight:700; text-transform:uppercase;
   }
+  .badge-warn{
+    display:inline-block; font-size:10.5px; padding:1px 6px; border-radius:4px;
+    background:rgba(248,113,113,.14); color:#f87171; font-weight:700; text-transform:uppercase;
+  }
+  li.item.dead{border-left-color:#7f1d1d}
   .actions{flex:0 0 auto; display:flex; gap:6px}
   .btn{
     border:1px solid var(--line); background:#111827; color:var(--muted);
@@ -283,7 +288,7 @@
 
   function buildItem(item) {
     var li = document.createElement('li');
-    li.className = 'item';
+    li.className = 'item' + (item.reachable === false ? ' dead' : '');
 
     var icon = document.createElement('div');
     icon.className = 'icon';
@@ -314,6 +319,8 @@
     if (item.folder) parts.push('📂 ' + escapeHtml(item.folder));
     if (item.source === 'external' && item.host) parts.push('🔗 ' + escapeHtml(item.host));
     if (item.description) parts.push(escapeHtml(item.description));
+    // reachable est renseigne au build : false = le serveur distant n'a pas repondu
+    if (item.reachable === false) parts.push('<span class="badge-warn">lien mort ?</span>');
 
     meta.innerHTML = badge + (parts.length ? '<span class="sep">·</span>' + parts.join('<span class="sep">·</span>') : '');
     info.appendChild(meta);

@@ -2,9 +2,15 @@
   "siteName": "Mes fichiers",
   "tagline": "Index des fichiers hébergés",
 
-  "_comment_allowedHosts": "Liste des domaines qui t'appartiennent. Un lien externe dont le domaine n'est PAS ici est refusé au build. Ex: \"mon-site.vercel.app\".",
+  "_comment_allowedHosts": "Domaines autorisés pour les liens externes. Jokers acceptés : \"mon-site.fr\" couvre aussi ses sous-domaines, \"*.mon-site.fr\" ne couvre que les sous-domaines, \"cdn.*\" couvre n'importe quel domaine commençant par cdn. Un lien hors de cette liste est refusé au build.",
   "allowedHosts": [],
 
-  "_comment_links": "Fichiers hébergés sur TES autres sites. Les fichiers posés dans public/files/ sont détectés automatiquement : inutile de les lister ici. Ex: { \"name\": \"Setup v2.exe\", \"url\": \"https://mon-site.vercel.app/dl/setup.exe\", \"description\": \"Version stable\" }",
+  "_comment_allowAnyHost": "Mettre à true pour désactiver complètement le filtre ci-dessus et accepter n'importe quel domaine.",
+  "allowAnyHost": false,
+
+  "_comment_fetchMetadata": "Le build interroge chaque lien externe (HEAD) pour récupérer taille, type et date. Mettre à false pour ne rien interroger.",
+  "fetchMetadata": true,
+
+  "_comment_links": "Fichiers hébergés ailleurs. Une simple URL suffit : \"https://cdn.mon-site.fr/setup.exe\". Forme complète pour forcer un nom ou une description : { \"name\": \"Setup v2\", \"url\": \"...\", \"description\": \"Version stable\" }. Les fichiers posés dans public/files/ sont détectés automatiquement, inutile de les lister ici.",
   "links": []
 }
