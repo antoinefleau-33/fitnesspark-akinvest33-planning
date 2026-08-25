@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Xcodeproj → IPA non signé</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #181b22; --border: #2a2f3a;
+    --text: #e8eaf0; --muted: #9aa3b2; --accent: #4f8cff; --warn: #ffb84f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    max-width: 560px; width: 100%; padding: 32px;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 8px; }
+  p.sub { color: var(--muted); margin-bottom: 24px; line-height: 1.5; }
+  .drop {
+    border: 2px dashed var(--border); border-radius: 12px; padding: 32px;
+    text-align: center; cursor: pointer; transition: border-color .2s, background .2s;
+  }
+  .drop.dragover { border-color: var(--accent); background: rgba(79,140,255,.08); }
+  .drop strong { color: var(--accent); }
+  .drop .filename { margin-top: 10px; color: var(--muted); font-size: .9rem; word-break: break-all; }
+  input[type=file] { display: none; }
+  button {
+    margin-top: 20px; width: 100%; padding: 14px; border: none; border-radius: 10px;
+    background: var(--accent); color: #fff; font-size: 1rem; font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .flash { background: rgba(255,90,90,.12); border: 1px solid rgba(255,90,90,.4);
+    color: #ff9a9a; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: .92rem; }
+  .note {
+    margin-top: 24px; padding: 14px; border-radius: 10px; font-size: .85rem; line-height: 1.55;
+    background: rgba(255,184,79,.08); border: 1px solid rgba(255,184,79,.3); color: var(--warn);
+  }
+  .note b { color: var(--warn); }
+  ul { margin: 8px 0 0 18px; }
+  .spinner { display: none; margin-top: 14px; text-align: center; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Xcodeproj → IPA non signé</h1>
+  <p class="sub">Envoyez un <b>.zip</b> de votre projet Xcode (avec <code>Info.plist</code>, ou mieux : un bundle <code>.app</code> compilé) et récupérez un <b>.ipa non signé</b>.</p>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, msg in messages %}
+      <div class="flash">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <form method="post" action="/convert" enctype="multipart/form-data" id="form">
+    <label class="drop" id="drop">
+      <span>Glissez votre zip ici ou <strong>cliquez pour choisir</strong></span>
+      <div class="filename" id="filename"></div>
+      <input type="file" name="project_zip" id="file" accept=".zip" required>
+    </label>
+    <button type="submit" id="btn" disabled>Convertir en .ipa</button>
+    <div class="spinner" id="spinner">Conversion en cours…</div>
+  </form>
+
+  <div class="note">
+    <b>À savoir :</b> ce serveur (Linux) ne peut pas compiler avec Xcode.
+    <ul>
+      <li>Si le zip contient un <b>.app déjà compilé</b> (build Xcode), il est repackagé en IPA installable (non signé).</li>
+      <li>Si le zip ne contient que les <b>sources</b>, un IPA structurel est généré (plist + ressources, sans binaire) — il ne s'installera pas tel quel.</li>
+      <li>L'IPA n'est <b>pas signé</b> : signez-le ensuite (Xcode, AltStore, Sideloadly…) pour l'installer.</li>
+    </ul>
+  </div>
+</div>
+<script>
+  const drop = document.getElementById('drop');
+  const input = document.getElementById('file');
+  const btn = document.getElementById('btn');
+  const filename = document.getElementById('filename');
+  const form = document.getElementById('form');
+  const spinner = document.getElementById('spinner');
+
+  function setFile(files) {
+    if (files.length) {
+      input.files = files;
+      filename.textContent = files[0].name;
+      btn.disabled = false;
+    }
+  }
+  input.addEventListener('change', () => setFile(input.files));
+  ['dragover','dragenter'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('dragover'); }));
+  drop.addEventListener('drop', ev => setFile(ev.dataTransfer.files));
+  form.addEventListener('submit', () => { btn.disabled = true; spinner.style.display = 'block';
+    setTimeout(() => { btn.disabled = false; spinner.style.display = 'none'; }, 8000); });
+</script>
+</body>
+</html>
