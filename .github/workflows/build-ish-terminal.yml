@@ -1,0 +1,98 @@
+name: Build iSH Terminal IPA
+
+on:
+  push:
+    branches: [claude/iphone-linux-terminal-app-27jvf5]
+  workflow_dispatch:
+
+jobs:
+  # Job 1 : construit un rootfs Alpine Linux x86 personnalisé
+  # avec bash, zsh, git et cloudflared préinstallés.
+  rootfs:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Build custom Alpine x86 rootfs
+        run: |
+          set -eux
+          ALPINE=https://dl-cdn.alpinelinux.org/alpine/v3.19
+
+          # apk-tools-static (outil apk utilisable depuis l'hôte x86_64)
+          curl -sSL "$ALPINE/main/x86_64/APKINDEX.tar.gz" -o idx.tar.gz
+          tar xzf idx.tar.gz APKINDEX
+          PKG=$(awk -F: '/^P:apk-tools-static$/{found=1} found && /^V:/{print "apk-tools-static-"$2".apk"; exit}' APKINDEX)
+          curl -sSL "$ALPINE/main/x86_64/$PKG" -o apk-tools.apk
+          tar xzf apk-tools.apk sbin/apk.static 2>/dev/null || true
+          test -x sbin/apk.static
+
+          # Rootfs de base : Alpine minirootfs x86 (architecture émulée par iSH)
+          MINI=$(curl -sSL "$ALPINE/releases/x86/latest-releases.yaml" | awk '/file:.*minirootfs.*tar\.gz$/{print $2; exit}')
+          mkdir rootfs
+          curl -sSL "$ALPINE/releases/x86/$MINI" | sudo tar xz -C rootfs
+
+          # Dépôts apk officiels
+          printf '%s\n%s\n' "$ALPINE/main" "$ALPINE/community" | sudo tee rootfs/etc/apk/repositories
+
+          # Préinstallation des paquets demandés
+          sudo ./sbin/apk.static --arch x86 --root "$PWD/rootfs" \
+            --no-scripts --allow-untrusted -U \
+            -X "$ALPINE/main" -X "$ALPINE/community" \
+            add bash zsh git openssh-client curl ca-certificates
+
+          # cloudflared : binaire officiel Cloudflare linux-386 (Go, statique)
+          sudo curl -sSL -o rootfs/usr/local/bin/cloudflared \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-386
+          sudo chmod 755 rootfs/usr/local/bin/cloudflared
+
+          # bash comme shell de connexion de root
+          sudo sed -i 's#^\(root:.*\):/bin/ash$#\1:/bin/bash#' rootfs/etc/passwd
+
+          printf 'Terminal Linux (Alpine x86) — bash, zsh, git et cloudflared preinstalles.\n' | sudo tee rootfs/etc/motd
+
+          sudo tar --numeric-owner -czf rootfs.tar.gz -C rootfs .
+          ls -la rootfs.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rootfs
+          path: rootfs.tar.gz
+
+  # Job 2 : compile iSH (émulateur x86 + terminal pour iOS) sans signature,
+  # injecte le rootfs personnalisé et produit un .ipa à signer soi-même.
+  build-ipa:
+    needs: rootfs
+    runs-on: macos-26
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ish-app/ish
+          submodules: true
+
+      - name: Install dependencies
+        run: brew install llvm lld ninja libarchive meson
+
+      - name: Build iSH (unsigned)
+        run: |
+          xcodebuild -project iSH.xcodeproj -scheme iSH -configuration Release \
+            -arch arm64 -sdk iphoneos -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: rootfs
+
+      - name: Inject custom rootfs and package IPA
+        run: |
+          set -eux
+          APP=$(find build/Build/Products -maxdepth 2 -name "iSH.app" | head -1)
+          test -n "$APP"
+          cp rootfs.tar.gz "$APP/root.tar.gz"
+          mkdir Payload
+          cp -R "$APP" Payload/
+          zip -qry iSH-terminal-unsigned.ipa Payload
+          ls -la iSH-terminal-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iSH-terminal-unsigned-ipa
+          path: iSH-terminal-unsigned.ipa
