@@ -1,0 +1,37 @@
+#cloud-config
+# FreePlay OS — installation 100 % automatique basée sur Ubuntu Desktop 24.04.
+# ⚠️ ATTENTION : cette configuration EFFACE TOUT LE DISQUE de la machine cible.
+#
+# Compte créé par défaut :
+#   utilisateur : freeplay
+#   mot de passe : freeplay   (à changer après l'installation !)
+autoinstall:
+  version: 1
+  locale: fr_FR.UTF-8
+  keyboard:
+    layout: fr
+  timezone: Europe/Paris
+  source:
+    id: ubuntu-desktop-minimal
+    search_drivers: true
+  drivers:
+    install: true
+  codecs:
+    install: true
+  identity:
+    realname: FreePlay
+    username: freeplay
+    hostname: freeplay-os
+    # Hash du mot de passe "freeplay" (généré avec : openssl passwd -6 freeplay)
+    password: "$6$KDcRpw2JDEGLn3LM$tCECPeTmfE3CTs0dvKDCy0lRoPGX0r91XqPNkO/29wPctAiE2RAkBznF2CJO1OO0Xj8NPdrIGdXUVojrcciaF1"
+  storage:
+    layout:
+      name: direct
+  late-commands:
+    # Copie du projet dans le système installé
+    - cp -r /cdrom/freeplay/payload /target/opt/freeplay-os
+    - chmod +x /target/opt/freeplay-os/setup/install.sh
+    # Le gros de l'installation (Steam, Kodi, Chrome…) se fait au premier
+    # démarrage, une fois le réseau disponible.
+    - cp /target/opt/freeplay-os/setup/freeplay-firstboot.service /target/etc/systemd/system/freeplay-firstboot.service
+    - curtin in-target -- systemctl enable freeplay-firstboot.service

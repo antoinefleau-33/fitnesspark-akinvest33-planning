@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FreePlay OS : chaînes TV de la Freebox via le réseau local.
+     Fonctionne uniquement quand le PC est connecté au réseau de la Freebox. -->
+<settings version="2">
+    <setting id="kodi_addon_instance_name">Freebox TV</setting>
+    <setting id="kodi_addon_instance_enabled">true</setting>
+    <setting id="m3uPathType">1</setting>
+    <setting id="m3uUrl">http://mafreebox.freebox.fr/freeboxtv/playlist.m3u</setting>
+    <setting id="m3uCache">true</setting>
+    <setting id="connectioncheckinterval">10</setting>
+    <setting id="connectionchecktimeout">20</setting>
+</settings>

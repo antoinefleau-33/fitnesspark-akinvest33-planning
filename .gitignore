@@ -1,0 +1,4 @@
+# Fichiers générés par la construction de l'ISO
+iso/work/
+iso/*.iso
+*.iso

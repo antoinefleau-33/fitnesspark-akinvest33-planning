@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Netflix
+Comment=Netflix en plein écran
+Exec=google-chrome --app=https://www.netflix.com --start-fullscreen
+Icon=video-display
+Terminal=false
+Categories=AudioVideo;Video;Network;
+StartupNotify=true

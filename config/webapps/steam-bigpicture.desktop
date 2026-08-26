@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Steam (mode TV)
+Comment=Steam en mode Big Picture, pensé pour la manette et la télé
+Exec=steam steam://open/bigpicture
+Icon=steam
+Terminal=false
+Categories=Game;
+StartupNotify=true

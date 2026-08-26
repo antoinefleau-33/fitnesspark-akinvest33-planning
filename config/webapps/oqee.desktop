@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=OQEE by Free
+Comment=La TV de Free (chaînes, replay, enregistrements) — même hors du domicile
+Exec=google-chrome --app=https://oqee.tv --start-fullscreen
+Icon=video-display
+Terminal=false
+Categories=AudioVideo;Video;TV;Network;
+StartupNotify=true

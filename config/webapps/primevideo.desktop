@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Prime Video
+Comment=Amazon Prime Video en plein écran
+Exec=google-chrome --app=https://www.primevideo.com --start-fullscreen
+Icon=video-display
+Terminal=false
+Categories=AudioVideo;Video;Network;
+StartupNotify=true
