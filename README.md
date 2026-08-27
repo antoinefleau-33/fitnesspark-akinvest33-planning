@@ -9,6 +9,11 @@ pour ne pas gâcher de stockage), optimisé **4K**, **gaming** et **Wi-Fi**.
 > contient maintenant le projet FreePlay OS. (Le planning reste intact sur la
 > branche `main`.)
 
+> 📱 **C'est pour une tablette Android ?** Sur tablette on ne remplace pas
+> l'OS (bootloader verrouillé, perte du DRM Netflix, pas de Steam sur ARM) :
+> l'édition **[FreePlay Tablette](tablette-android/README.md)** obtient le même
+> résultat par configuration, sans flash et 100 % réversible.
+
 ---
 
 ## ⚠️ À lire d'abord : on ne peut pas installer un OS *sur* la Freebox
