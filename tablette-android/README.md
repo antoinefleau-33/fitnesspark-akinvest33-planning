@@ -109,6 +109,41 @@ installées se désinstallent normalement depuis la tablette, si besoin.)
 
 ---
 
+## 📋 Ta tablette : puce Allwinner A133 (formes géométriques au démarrage)
+
+Les **formes géométriques colorées au démarrage** sont l'animation de
+démarrage standard des tablettes génériques à puce **Allwinner A133**
+(4 cœurs Cortex-A53, GPU Mali-G31) : c'est **normal**, pas une panne.
+⚠️ Si par contre elle **reste bloquée** dessus plus de 2–3 minutes :
+maintiens le bouton power 15 secondes pour forcer un redémarrage ; si ça se
+reproduit à chaque fois, démarre en recovery (power + volume haut, tablette
+éteinte) et fais « Wipe data / factory reset » (efface tout le contenu).
+
+À savoir honnêtement sur ces tablettes, avant de te lancer :
+
+| Point | Réalité sur A133 | Quoi faire |
+|---|---|---|
+| Netflix / Disney+ / Prime | La plupart sont **Widevine L3** → qualité SD (480p). Quelques modèles sont L1 (HD) | Vérifie avec l'appli **DRM Info** ; si L3, c'est une limite matérielle définitive |
+| Play Store | Certaines ne sont **pas certifiées Google** → Netflix peut être invisible sur le Play Store | Play Store → Paramètres → À propos → « Certification Play Protect ». Si « non certifié », OQEE/VLC marchent quand même |
+| Wi-Fi | Beaucoup n'ont que le **2,4 GHz** | Si le réseau 5 GHz de la Freebox n'apparaît pas dans les réglages Wi-Fi, c'est le cas |
+| Steam Link | Possible mais limité (Wi-Fi 2,4 GHz + puce modeste) | Colle-toi près de la box et baisse la qualité dans Steam Link → Paramètres → Streaming (Rapide) |
+| TV (OQEE), VLC, YouTube | ✅ Ça, ça marche bien | Rien de spécial |
+| Changer l'OS / ROM custom | **Non** : aucune ROM alternative n'existe pour ces modèles sans marque ; les firmwares « PhoenixSuit » trouvés sur des forums sont risqués (brick, malwares) et n'apporteraient rien | Garde Android d'origine + ce script |
+
+Réglages bonus conseillés sur A133 (puce modeste) :
+
+```bash
+# Animations complètement désactivées (encore plus réactif que le 0.5 du script)
+adb shell settings put global window_animation_scale 0
+adb shell settings put global transition_animation_scale 0
+adb shell settings put global animator_duration_scale 0
+```
+
+Et accepte l'étape « nettoyage » du script : sur 2–3 Go de RAM, chaque appli
+désactivée compte. En résumé : cette tablette fera une très bonne **TV
+d'appoint OQEE / lecteur VLC / écran Netflix (en SD)** ; pour le streaming de
+jeux exigeant, n'en attends pas des miracles.
+
 ## 💡 Conseils qualité (4K / HD)
 
 - **Vérifie le DRM de ta tablette** : installe « DRM Info » (Play Store). S'il
