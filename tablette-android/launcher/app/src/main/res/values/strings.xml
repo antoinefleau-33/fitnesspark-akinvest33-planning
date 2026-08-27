@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FreePlay TV</string>
+
+    <string name="greeting_morning">Bonjour</string>
+    <string name="greeting_afternoon">Bon après-midi</string>
+    <string name="greeting_evening">Bonsoir</string>
+
+    <string name="gamepad_connected">Manette : %1$s</string>
+    <string name="gamepad_absent">Aucune manette</string>
+    <string name="gamepad_unknown">Manette</string>
+
+    <string name="all_apps">Toutes les applications</string>
+    <plurals name="app_count">
+        <item quantity="one">%d application</item>
+        <item quantity="other">%d applications</item>
+    </plurals>
+
+    <string name="badge_install">À installer</string>
+    <string name="store_unavailable">Play Store indisponible sur cette tablette</string>
+
+    <string name="channel_gamepad">Manette</string>
+    <string name="channel_gamepad_desc">Maintient la connexion de la manette</string>
+    <string name="keeper_title">FreePlay TV</string>
+    <string name="keeper_ready">Manette prête : %1$s</string>
+    <string name="keeper_no_pad">Aucune manette appairée</string>
+    <string name="keeper_bt_off">Bluetooth désactivé</string>
+</resources>

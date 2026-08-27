@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Contour lumineux quand la tuile a le focus (manette / doigt). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="@dimen/tile_corner" />
+            <stroke android:width="3dp" android:color="@color/text_bright" />
+            <solid android:color="@android:color/transparent" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="@dimen/tile_corner" />
+            <solid android:color="@android:color/transparent" />
+        </shape>
+    </item>
+</selector>

@@ -1,9 +1,18 @@
 # 📱 FreePlay Tablette — l'édition tablette Android
 
-Transforme une tablette Android en "box" Freebox : **chaînes TV Free (OQEE)**,
-**Netflix / Disney+ / Prime Video** (et rien d'autre), **jeux Steam en
-streaming**, optimisations fluidité et Wi-Fi. Le tout **sans rien flasher** et
+Transforme une tablette Android en "box" Freebox : **interface façon Android
+TV**, **chaînes TV Free (OQEE)**, **Netflix / Disney+ / Prime Video** (et rien
+d'autre), **jeux Steam en streaming**, **manette toujours connectée**,
+optimisations fluidité et Wi-Fi. Le tout **sans rien flasher** et
 **100 % réversible**.
+
+## 🚀 Les trois scripts, dans l'ordre
+
+| # | Script | Ce qu'il fait |
+|---|---|---|
+| 1 | `install-tablette.sh` / `.bat` | Installe les applis (OQEE, Netflix, Disney+, Prime, Steam Link, VLC) et optimise la tablette |
+| 2 | `install-interface-tv.sh` / `.bat` | Installe **l'interface FreePlay TV** et rend la **manette permanente** → [INTERFACE-TV.md](INTERFACE-TV.md) |
+| — | *(lecture)* | Jouer sur la télé : pourquoi le miroir d'écran ne convient pas, et quoi faire → [JOUER-SUR-LA-TV.md](JOUER-SUR-LA-TV.md) |
 
 ---
 
