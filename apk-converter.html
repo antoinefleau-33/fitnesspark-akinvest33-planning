@@ -219,16 +219,16 @@
 <body>
     <div class="container">
         <h1>🔧 APK M to APK Converter</h1>
-        <p class="subtitle">Convertir vos fichiers APK M vers le format APK standard</p>
+        <p class="subtitle">Convertir .APKM, .AAB ou .APK (jusqu'a 500MB)</p>
 
         <div class="error-message" id="errorMsg"></div>
         <div class="success-message" id="successMsg"></div>
 
         <div class="upload-section" id="uploadSection">
             <div class="upload-icon">📦</div>
-            <div class="upload-text">Glissez-déposez votre fichier APK M ici</div>
-            <div class="upload-subtext">ou cliquez pour sélectionner</div>
-            <input type="file" id="fileInput" accept=".apk,.aab" />
+            <div class="upload-text">Glissez-déposez votre fichier ici</div>
+            <div class="upload-subtext">Formats: .apkm, .aab, .apk (jusqu'à 500MB)</div>
+            <input type="file" id="fileInput" />
         </div>
 
         <div class="file-info" id="fileInfo">
@@ -303,17 +303,26 @@
         function handleFileSelect(file) {
             hideMessages();
             selectedFile = file;
-            const isValid = file.name.endsWith('.apkm') || file.name.endsWith('.apk') || file.name.endsWith('.aab');
+
+            const ext = file.name.toLowerCase().split('.').pop();
+            const isValid = ['apkm', 'apk', 'aab'].includes(ext);
 
             if (!isValid) {
-                showError('Veuillez sélectionner un fichier .apkm, .apk ou .aab');
+                showError('Format non supporté. Utilisez .apkm, .apk ou .aab');
+                selectedFile = null;
+                return;
+            }
+
+            const maxSize = 500 * 1024 * 1024;
+            if (file.size > maxSize) {
+                showError('Fichier trop volumineux (max 500MB)');
                 selectedFile = null;
                 return;
             }
 
             document.getElementById('fileName').textContent = file.name;
             document.getElementById('fileSize').textContent = formatFileSize(file.size);
-            document.getElementById('fileType').textContent = file.name.split('.').pop().toUpperCase();
+            document.getElementById('fileType').textContent = ext.toUpperCase();
 
             fileInfo.classList.add('show');
             convertBtn.disabled = false;
@@ -334,12 +343,12 @@
                 } else if (fileName.endsWith('.aab')) {
                     await convertAabToApk(selectedFile);
                 } else if (fileName.endsWith('.apk')) {
-                    showError('Le fichier est déjà un APK valide');
+                    showError('Fichier déjà au format APK');
                     convertBtn.disabled = false;
                     progress.classList.remove('show');
                 }
             } catch (error) {
-                showError('Erreur lors de la conversion: ' + error.message);
+                showError('Erreur: ' + error.message);
                 convertBtn.disabled = false;
                 progress.classList.remove('show');
             }
@@ -347,23 +356,25 @@
 
         async function convertApkmToApk(file) {
             const zip = new JSZip();
-            const arrayBuffer = await file.arrayBuffer();
+            updateProgress(20);
 
-            updateProgress(30);
+            const arrayBuffer = await file.arrayBuffer();
+            updateProgress(40);
 
             const loadedZip = await zip.loadAsync(arrayBuffer);
-
             updateProgress(60);
 
             const newZip = new JSZip();
-            for (const [path, zipEntry] of Object.entries(loadedZip.files)) {
+            const entries = Object.entries(loadedZip.files);
+
+            for (let i = 0; i < entries.length; i++) {
+                const [path, zipEntry] = entries[i];
                 if (!zipEntry.dir) {
                     const data = await zipEntry.async('uint8array');
                     newZip.file(path, data);
                 }
+                updateProgress(60 + Math.floor((i / entries.length) * 30));
             }
-
-            updateProgress(80);
 
             const blob = await newZip.generateAsync({ type: 'blob' });
             downloadFile(blob, file.name.replace(/\.apkm$/i, '.apk'));
@@ -378,24 +389,26 @@
 
         async function convertAabToApk(file) {
             const zip = new JSZip();
-            const arrayBuffer = await file.arrayBuffer();
+            updateProgress(20);
 
-            updateProgress(30);
+            const arrayBuffer = await file.arrayBuffer();
+            updateProgress(40);
 
             const loadedZip = await zip.loadAsync(arrayBuffer);
-
             updateProgress(60);
 
             const newZip = new JSZip();
-            for (const [path, zipEntry] of Object.entries(loadedZip.files)) {
+            const entries = Object.entries(loadedZip.files);
+
+            for (let i = 0; i < entries.length; i++) {
+                const [path, zipEntry] = entries[i];
                 if (!zipEntry.dir && path.startsWith('base/')) {
                     const data = await zipEntry.async('uint8array');
                     const newPath = path.replace('base/', '');
                     newZip.file(newPath, data);
                 }
+                updateProgress(60 + Math.floor((i / entries.length) * 30));
             }
-
-            updateProgress(80);
 
             const blob = await newZip.generateAsync({ type: 'blob' });
             downloadFile(blob, file.name.replace(/\.aab$/i, '.apk'));
@@ -421,7 +434,7 @@
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            setTimeout(() => URL.revokeObjectURL(url), 100);
         }
 
         function resetForm() {
