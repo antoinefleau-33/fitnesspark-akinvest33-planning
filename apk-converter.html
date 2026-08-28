@@ -259,6 +259,7 @@
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
         const uploadSection = document.getElementById('uploadSection');
         const fileInput = document.getElementById('fileInput');
@@ -302,65 +303,125 @@
         function handleFileSelect(file) {
             hideMessages();
             selectedFile = file;
-            const isValid = file.type.includes('application') || file.name.endsWith('.apk') || file.name.endsWith('.aab');
+            const isValid = file.name.endsWith('.apkm') || file.name.endsWith('.apk') || file.name.endsWith('.aab');
 
             if (!isValid) {
-                showError('Veuillez sélectionner un fichier APK valide');
+                showError('Veuillez sélectionner un fichier .apkm, .apk ou .aab');
                 selectedFile = null;
                 return;
             }
 
             document.getElementById('fileName').textContent = file.name;
             document.getElementById('fileSize').textContent = formatFileSize(file.size);
-            document.getElementById('fileType').textContent = file.type || 'application/vnd.android.package-archive';
+            document.getElementById('fileType').textContent = file.name.split('.').pop().toUpperCase();
 
             fileInfo.classList.add('show');
             convertBtn.disabled = false;
         }
 
-        function convertFile() {
+        async function convertFile() {
             if (!selectedFile) return;
 
             hideMessages();
             progress.classList.add('show');
             convertBtn.disabled = true;
 
-            let currentProgress = 0;
-            const interval = setInterval(() => {
-                currentProgress += Math.random() * 30;
-                if (currentProgress >= 100) {
-                    currentProgress = 100;
-                    clearInterval(interval);
+            try {
+                const fileName = selectedFile.name.toLowerCase();
 
-                    progressFill.style.width = '100%';
-                    progressText.textContent = '100%';
-
-                    setTimeout(() => {
-                        completeConversion();
-                    }, 500);
-                } else {
-                    progressFill.style.width = currentProgress + '%';
-                    progressText.textContent = Math.floor(currentProgress) + '%';
+                if (fileName.endsWith('.apkm')) {
+                    await convertApkmToApk(selectedFile);
+                } else if (fileName.endsWith('.aab')) {
+                    await convertAabToApk(selectedFile);
+                } else if (fileName.endsWith('.apk')) {
+                    showError('Le fichier est déjà un APK valide');
+                    convertBtn.disabled = false;
+                    progress.classList.remove('show');
                 }
-            }, 300);
+            } catch (error) {
+                showError('Erreur lors de la conversion: ' + error.message);
+                convertBtn.disabled = false;
+                progress.classList.remove('show');
+            }
         }
 
-        function completeConversion() {
-            const outputName = selectedFile.name.replace(/\.aab$|\.apk$/i, '_converted.apk');
+        async function convertApkmToApk(file) {
+            const zip = new JSZip();
+            const arrayBuffer = await file.arrayBuffer();
 
-            const blob = new Blob([selectedFile], { type: 'application/vnd.android.package-archive' });
+            updateProgress(30);
+
+            const loadedZip = await zip.loadAsync(arrayBuffer);
+
+            updateProgress(60);
+
+            const newZip = new JSZip();
+            for (const [path, zipEntry] of Object.entries(loadedZip.files)) {
+                if (!zipEntry.dir) {
+                    const data = await zipEntry.async('uint8array');
+                    newZip.file(path, data);
+                }
+            }
+
+            updateProgress(80);
+
+            const blob = await newZip.generateAsync({ type: 'blob' });
+            downloadFile(blob, file.name.replace(/\.apkm$/i, '.apk'));
+
+            updateProgress(100);
+            setTimeout(() => {
+                progress.classList.remove('show');
+                convertBtn.disabled = false;
+                showSuccess('✓ Conversion .apkm → .apk réussie!');
+            }, 500);
+        }
+
+        async function convertAabToApk(file) {
+            const zip = new JSZip();
+            const arrayBuffer = await file.arrayBuffer();
+
+            updateProgress(30);
+
+            const loadedZip = await zip.loadAsync(arrayBuffer);
+
+            updateProgress(60);
+
+            const newZip = new JSZip();
+            for (const [path, zipEntry] of Object.entries(loadedZip.files)) {
+                if (!zipEntry.dir && path.startsWith('base/')) {
+                    const data = await zipEntry.async('uint8array');
+                    const newPath = path.replace('base/', '');
+                    newZip.file(newPath, data);
+                }
+            }
+
+            updateProgress(80);
+
+            const blob = await newZip.generateAsync({ type: 'blob' });
+            downloadFile(blob, file.name.replace(/\.aab$/i, '.apk'));
+
+            updateProgress(100);
+            setTimeout(() => {
+                progress.classList.remove('show');
+                convertBtn.disabled = false;
+                showSuccess('✓ Conversion .aab → .apk réussie!');
+            }, 500);
+        }
+
+        function updateProgress(percent) {
+            progressFill.style.width = percent + '%';
+            progressText.textContent = percent + '%';
+        }
+
+        function downloadFile(blob, fileName) {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = outputName;
+            a.download = fileName;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-
-            progress.classList.remove('show');
-            convertBtn.disabled = false;
-            showSuccess(`✓ Conversion réussie! ${outputName}`);
         }
 
         function resetForm() {
