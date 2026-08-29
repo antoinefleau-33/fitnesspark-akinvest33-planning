@@ -295,6 +295,22 @@ input::placeholder { color: #5f6b83; }
 .btn-secondary:hover { border-color: var(--accent); background: #1f2536; }
 .result-expiry { color: #7f8aa3; font-size: 12px; margin: 14px 0 0; }
 
+.cable-install {
+  margin-top: 14px; text-align: left;
+  border: 1px solid var(--border); border-radius: 11px; background: var(--card-2);
+  padding: 4px 14px;
+}
+.cable-install summary { cursor: pointer; padding: 8px 0; font-size: 13.5px; font-weight: 600; color: var(--text); }
+.cable-body { font-size: 13px; color: var(--muted); padding-bottom: 8px; }
+.cable-body b { color: var(--text); }
+.cable-body ol { padding-left: 18px; margin: 6px 0 10px; }
+.cable-body li { margin-bottom: 5px; }
+.cable-body pre {
+  background: rgba(0,0,0,.35); border-radius: 8px; padding: 10px; font-size: 12px;
+  overflow-x: auto; color: #cdd8ef; white-space: pre;
+}
+.cable-hint { margin-top: 8px; color: #9aa4b8; }
+
 .privacy {
   margin: 18px 2px 0;
   color: var(--muted);

@@ -188,6 +188,31 @@ function showResult(data) {
   row.appendChild(copy);
   statusBox.appendChild(row);
 
+  // Bloc : installation par câble sur Mac (garde la signature AppleP12 telle quelle).
+  const dlAbs = location.origin + data.downloadUrl;
+  const cable = document.createElement('details');
+  cable.className = 'cable-install';
+  cable.innerHTML =
+    '<summary>💻 Installer par câble sur Mac (au lieu de l’OTA)</summary>' +
+    '<div class="cable-body">' +
+      '<p><b>Option simple — Apple Configurator (sans terminal) :</b></p>' +
+      '<ol>' +
+        '<li>Installe <b>Apple Configurator</b> (gratuit, Mac App Store) et ouvre-le.</li>' +
+        '<li>Branche l’iPhone en USB, déverrouille-le, touche <b>« Se fier »</b>.</li>' +
+        '<li>Télécharge l’IPA (bouton <b>⬇️</b> ci-dessus).</li>' +
+        '<li>Glisse le fichier <code>.ipa</code> sur l’iPhone dans Apple Configurator → il s’installe.</li>' +
+      '</ol>' +
+      '<p><b>Option terminal — Homebrew :</b></p>' +
+      '<pre>brew install ideviceinstaller\n' +
+      'idevice_id -l                 # UDID de l’iPhone\n' +
+      'curl -L -o app.ipa "' + esc(dlAbs) + '"\n' +
+      'ideviceinstaller -i app.ipa</pre>' +
+      '<p class="cable-hint">💡 Un script prêt à l’emploi est fourni : <code>tools/install-mac.sh "' + esc(dlAbs) + '"</code>. ' +
+      'Par câble, si l’installation échoue, le message d’erreur est bien plus précis qu’en OTA ' +
+      '(ex. <code>ApplicationVerificationFailed</code> = certificat révoqué, ou UDID absent du profil).</p>' +
+    '</div>';
+  statusBox.appendChild(cable);
+
   const expiry = document.createElement('p');
   expiry.className = 'result-expiry';
   expiry.textContent = '⏳ Lien valable environ ' + (data.expiresInMin || 30) + ' min, puis le fichier est supprimé du serveur.';

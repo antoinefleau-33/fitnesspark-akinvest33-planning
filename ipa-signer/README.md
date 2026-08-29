@@ -24,6 +24,23 @@ La signature est **réelle** et se fait côté serveur grâce à
 
 > **Après l'installation OTA**, si l'app ne s'ouvre pas : *Réglages → Général → VPN et gestion de l'appareil* → sélectionnez votre profil → **Faire confiance**. L'app doit correspondre à votre certificat (UDID dans le profil pour un cert. de développement, ou cert. d'entreprise valide).
 
+### Installer par câble sur Mac (garde la signature AppleP12 telle quelle)
+
+Alternative à l'OTA, utile si l'installation échoue (message d'erreur bien plus précis par câble).
+
+**Sans terminal — Apple Configurator :** installez *Apple Configurator* (gratuit, Mac App Store), branchez l'iPhone (USB, déverrouillé, « Se fier »), téléchargez l'IPA signé, puis glissez le `.ipa` sur l'iPhone dans Apple Configurator.
+
+**En terminal — script fourni :**
+
+```bash
+cd ipa-signer
+./tools/install-mac.sh ~/Downloads/MonApp-signed.ipa
+# ou directement depuis l'URL du site :
+./tools/install-mac.sh "https://ton-site.onrender.com/f/<id>/app.ipa"
+```
+
+Le script installe `libimobiledevice`/`ideviceinstaller` via Homebrew si besoin, détecte l'iPhone, **affiche son UDID** (à comparer avec le profil), et installe l'app. En cas d'échec, il traduit l'erreur (`ApplicationVerificationFailed` = certificat révoqué, `MismatchedApplicationIdentifierEntitlement` = profil ≠ bundle id, `device not in provisioning` = UDID absent du profil).
+
 **Confidentialité :** chaque signature s'exécute dans un dossier temporaire isolé,
 supprimé immédiatement après l'envoi de la réponse. Le mot de passe n'est **jamais**
 journalisé ni conservé.
